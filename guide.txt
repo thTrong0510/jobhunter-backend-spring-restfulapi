@@ -1,0 +1,228 @@
+===== Chapter 3: Hello World với Spring REST ====
+
+##1 - Hello World##
+
+- Check code kết nối tới database mysql Đảm bảo rằng bạn đã cài đặt MySQL Workbench, và có tài khoản đăng nhập vào database.
+//build.gradle.kts => nhấn chuột phải, chọn “Reload projects)
+	Enable 2 dependencies là jpa và mysql -> khi enable 2 dependencies này -> cần phải cấu hình thêm thông tin kết nối xuống database nếu ko sẽ lỗi 
+
+- thư viện spring-boot-devtools giúp tự động update reload dự án khi bấm lưu code
+
+##2 - Cấu trúc dự án thực hành##
+
+- Trong dự án này sử dụng 1 Built Tools là Gradle chứ ko pải maven là công cụ giúp built/chạy dự án 
+	settings.gradle.kts: cung cấp tên dự án, một số thông tin bổ sung meta data
+	build.gradle.kts: nói cho Gradle biết
+		code ngôn ngữ gì, dịch code ntn
+		chạy java version nào
+		nơi nào kéo các thư viện về repositories {mavenCentral()} đây là kéo từ Maven Repository sau này nếu có 1 số thư viện tự code/private -> định nghĩa thêm vào đây 
+		cuối cùng là định nghĩa những thư viện nào cần dùng
+			actuator: kiểm tra hệ thống 
+			data-jpa: giúp kết nối xuống database (ORM)
+			security: login và phân quyền người dùng 
+			các thư viện liên quan đến thymeleaf: làm chức năng gửi email 
+			validation: validate dữ liệu 	
+			starter-web: dùng để chạy server/ứng dụng lên 
+			boot-devtools: khi bấm lưu code hệ thống/server sẽ tự restart lại 
+			mysql-connector-j: giúp chạy được mysql trong ứng dụng 
+			những cái test là liên quan đến viết test case 
+	thư mục gradle/ giúp cấu hình sẵn (version của gradle, ...) khi kéo về đã cấu hình sẵn ko cần cài lại 
+
+- thư mục src: 
++ main: thư mục viết code
+	java: viết code java
+		file main: nơi bắt đầu chạy dự án
+	config: config security, json web token, filter với security
+	repository: định nghĩa công cụ kết nối xuống database, những function muốn truy cập xuống database 
+	service: là cầu nối từ controller gọi xuống service -> repository 
+	domain: định nghĩa các model, actor, tale lưu vào database 
+	controller: điều hướng trang, định nghĩa các route 
+	resources: lưu các tài nguyên
+	
++ test: viết test case
+
+- các thư mục ẩn:
+	.vscode: đây là thư mục được sinh ra để cấu hình cách thức chạy dự án từ file lauch.json file này được sinh ra khi bấm chạy chương trình ở dashboard 
+
+	.gradle/bin: là 2 thư mục cần dùng của gradle làm sao để dịch code sẽ dịch code sang các file class vào thư mục bin hoặc sẽ lưu vào thư mục Build nếu dự án chưa có/ko có thư mục này thì chạy lệnh ./gradlew bootRun
+
+- Những file có tiền tố "gradle" là công cụ build dự án, hiểu một cách đơn giản:
+	+ quản lý các thư viện cài đặt
+	+ dịch code/build/run 
+
+	+ bao gồm: 
+		buld.gradle.kts
+		gradlew (gradlew.bat)
+		settings.gradle.kts
+
+- Gradle
+	Giúp bạn: Dịch code java -> .class vì java Virtual Machine chạy file class (ngôn ngữ tự nhiên -> ngôn ngữ máy)
+	Copy phần resource vào thư mục build
+	Tạo file jar: triên khai dự án ntn
+	Run test: test case 
+	And more…
+Về Gradle: https://www.youtube.com/watch?v=R6Z-Sxb837I
+
+- Sử dụng gradle:
+	Run dự án Spring Boot:
+		gradle bootRun
+		./gradle bootRun
+
+	Build file jar: gradlew bootJar
+
+	hiện tại đan sử dụng Gradle Koltin(dùng nhiều hơn) chứ ko pải Gradle Groovy 
+
+- So sánh Gradle và các công cụ khác
+Tham khảo:
+https://stackoverflow.com/questions/45335874/gradle-what-is-the-benefit-if-i-switch-from-groovy-to-kotlin
+
+Maven vs Gradle
+https://gradle.org/maven-vs-gradle/
+
+Về lý do tại sao tồn tại song song thư mục bin và thư mục build: (open issue)
+https://github.com/redhat-developer/vscode-java/issues/2338
+
+-> nếu có các lỗi khi chạy chương trình (ko pải lỗi cú pháp/lỗi code) -> đem dự án sang chạy ở IDE dùng cho java để nó config lại rồi đem về vscode chạy 
+
+
+====Chapter 4 CRUD User với Restful API====
+
+##I - Tổng quan các kiến thức sẽ học##
+
+1. Nội dung sẽ học
+- Phát triển REST APIs với Spring ( @RestController )
+- Tìm hiểu các khái niệm liên quan tới REST APIs, JSON và giao thức HTTP
+- Sử dụng Postman để test API
+
+2. Vấn đề tồn đọng
+
+Dưới góc nhìn của Developer (DEV)
+Ví dụ học Spring MVC dự án laptopshop khi thực hiện hành động nào đó phía frontend nếu ko có sự can thiệp của javascript -> load lại trang 
+
+Dưới góc nhìn của business (phân tích nghiệp vụ):
+Ví dụ: Xây dựng ứng dụng Weather App 
+
+Chắc chắn thông tin (dữ liệu) về Thời tiết, bạn sẽ không có, cần phụ thuộc vào bên thứ 3 cung cấp dịch vụ
+(ví dụ Trung tâm Dự báo Khí tượng thủy văn Quốc gia)
+
+Kiến trúc dự án:
+My Weather App (Client) ---------> Weather Service (Server)
+
+ở đây mình đi mua dữ liệu từ server của third party -> làm sao để kết nối giữa ứng dụng mình với server cung cấp dịch vụ/thông tin -> Làm sao để kết nối giữa client và server ?
+	Sử dụng REST API thông qua giao thức http
+	REST : REpresentational State Transfer
+
+- Ngôn ngữ lập trình nào được sử dụng ?
+REST không phụ thuộc vào ngôn ngữ lập trình
+-> viết Client/Server bằng ngôn ngữ bạn muốn: Java, C#, PHP, Javascript, Python...
+
+- Sử dụng định dạng data nào (data format) ?
+JSON và XML được dùng
+JSON sử dụng phổ biến nhất
+JSON : JavaScript Object Notation
+
+##II - JSON##
+
+Tham khảo: https://www.w3schools.com/js/js_json_intro.asp
+
+1. JSON là gì
+- JavaScript Object Notation
+- Là 1 định dạng để lưu trữ và trao đổi dữ liệu (mà không mã hóa gì hết / plain text)
+- Được sử dụng ở nhiều ngôn ngữ khác nhau: Java, C#, Javascript ...
+
+2. Cú pháp
+Ví dụ về JSON:
+{
+"id": 1,
+"name": "Hỏi Dân IT",
+"age": 25,
+"active": true
+}
+
+1 Json như thế này tương tự như 1 class của chúng ta - nhưng đối với Javascript thì gọi là Object 
+
+- Sử dụng dấu { //data } để định nghĩa JSON
+- Các thuộc tính được định nghĩa theo quy luật:  
+	name: value (ngăn cách với nhau bởi dấu hai chấm)
+
+Thuộc tính name luôn được bọc bởi " " (double quotes)
+
+3. JSON values
+- number
+- string
+- boolean
+- nested JSON object
+- Array
+- null
+
+//todo : json với nested object
+
+4. JSON so với XML 
+- đối với XML thì dùng các tag giống như html 
+- đối với JSON {} -> giống ngôn ngữ tự nhiên hơn 
+
+##III - API là gì##
+
+Tham khảo: https://jsonplaceholder.typicode.com/
+
+1. HTTP là gì
+Tham khảo: https://developer.mozilla.org/en-US/docs/Web/HTTP/Overview
+
+HTTP Method ----------> CRUD Operation
+POST ------------ Create a new entity
+GET ------------- Read a list of entities or single entity
+PUT ------------- Update an existing entity
+DELETE ---------- Delete an existing entity
+
+2. Cấu trúc HTTP Request
+- Request line : method + URL
+- Header variables
+- Message body: json
+
+3. API
+API, hiểu đơn giản, là một đường link URL được định nghĩa tại backend
+frontend ko tạo/viết được API 
+
+Frontend sẽ gọi tới đường link URL được định nghĩa ở Backend này để lấy/sử dụng dữ liệu.
+
+4. Status code
+- khi dùng API không thể thiếu trạng thái phản hồi thông qua được biểu hiện thông qua các số 
+Tham khảo: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
+
+HTTP response status codes
+	Informational responses (100 – 199)
+	Successful responses (200 – 299)
+	Redirection messages (300 – 399)
+	Client error responses (400 – 499)
+	Server error responses (500 – 599)
+
+##IV - Test API với Postman##
+
+Tham khảo:
+https://jsonplaceholder.typicode.com/ trang fake API 
+
+Test: URI https://jsonplaceholder.typicode.com/todos/1 (GET): các thông tin cần chú ý
+	status code: 200 -> lấy thông tin thành công ko lỗi 
+	kiểu data nên để dưới dạng JSON -> hiển thị đẹp hơn 
+	Method: 
+		GET: lấy tất cả nguồn tài nguyên 
+		POST ...
+API ở đây đơn giản là 1 đường link URL 
+
+
+Lợi thế của postman so với browser:
+- Đối với đường link URL trên nếu dán vào browser vẫn ra thông tin cần lấy nhưng chỉ dùng cho mỗi Method GET
+- Đối với 1 API ngoài việc truyền vào URL có thể truyền thêm các tham số khác như: headers, ...
+
+Để xem all thông tin của API thì bấm inspect + network + all + refresh + name({;}1) -> hiển thị bên phải là header + phần preview là thông tin GET về được 
+
+
+
+
+
+
+
+
+
+
+
