@@ -297,6 +297,103 @@ Spring Data Rest: code ngắn, phù hợp để phát triển ứng dụng một
 @RestController  :  code dài hơn. 100% kiểm soát code 
 
 
+====Chapter 5: Response Entity====
+Xử lý phản hồi của API với Response Entity
+
+##I - Tại sao cần Response Entity##
+
+Mô hình đang thực hiện: client -> server
+Cụ thể: client (browser/postman) gửi request (yêu cầu)  tới server (java) thông qua RESTful APIs
+
+Server (java) gửi response (phản hồi) về cho client
+
+Hiện tại, phản hồi (response) đang ở dạng text, hoặc JSON object
+
+Để các hệ thống nói chuyện với nhau 1 cách đầy đủ nhất, 1 lời phản hồi (response) sẽ gồm:
+	- Thông tin header (ví dụ bạn muốn dùng cookies chẳng hạn)
+	- Thông tin status (http status) : mã phản hồi
+	- Thông tin body (nếu có) : data phản hồi, thông thường dưới dạng JSON
+
+##II. Spring ResponseEntity##
+Tài liệu: https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/http/ResponseEntity.html
+
+- Kế thừa HttpEntity, với bổ sung http status
+
+Minh họa một vài cách dùng thông dụng:
+- trả về mình status
+ResponseEntity.status(HttpStatus.Ok).body(null);
+
+- trả về Status và headers:
+ResponseEntity.status(HttpStatus.Ok).headers(Instance_of_HttpHeaders).build();
+
+- trả về Status, headers và body:
+ResponseEntity.status(HttpStatus.Ok).headers(Instance_of_HttpHeaders)
+.body(Instance_of_object_send_back_to_client);
+
+##II - HTTP Status Code hay dùng##
+Tài liệu: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
+
+Mã lỗi ám chỉ request thành công:
+200 - request succeeded (hay dùng cho method GET/PUT/DELETE)
+201 - request created a resource (hay dùng cho method POST)
+204 - no content to return (dùng khi bạn muốn thông báo không có data ở phản hồi)
+
+202 - Accepted (the request has been accepted for processing, but the processing has not been completed): dùng khi bạn chạy job/background task và muốn gửi phản hồi cho client
+
+Mã lỗi ám chỉ request thất bại (lỗi do client):
+400 - Bad request (lỗi exception, validate...)
+401 - Unauthorized (unauthenticated): bạn chưa đăng nhập, có nghĩa rằng bạn cần login thành công thì mới có quyền sử dụng endpoint (API)
+403 - Forbidden (unauthorized): bạn đã đăng nhập thành công, tuy nhiên, bạn không có quyền hạn (authorization) để thực hiện tác vụ này
+404 - Resource not found : lỗi huyền thoại cmnr :v
+405 - Method not supported : check cho đúng method khi sử dụng với endpoint
+
+415 - Media not supported: bạn cần truyền đúng định dạng format mà server/client mong muốn. Ví dụ, bạn không thể dùng JSON để gửi file lên 
+server (cần dùng formData)
+
+Mã lỗi ám chỉ request thất bại (lỗi do server):
+500 - Internal Server error: lỗi xảy ra bên trong Server, cần đọc logs để biết lỗi gì (exception, bugs...)
+503 - Service Unavailable : server ngỏm (không chạy) nên không có sẵn để sử dụng
+504 - Gateway Timeout : server (có thể) không ngỏm, cơ mà không phản hồi trong thời gian quy định (quá lâu để phản hồi)
+
+1 - Update Status Code & Body cho APIs
+
+- Đọc code: của class ResponseEntity -> là 1 class cần truyên vào thêm 1 đối tượng/generate (kiểu template trong C++) + keyword builder
+- sử dụng ResponseEntity: đổi các kiểu dữ liệu trả về trong Controller = ResponseEntity<T> -> return về có 2 cách:
+	+ new ResponseEntity<T>(body, header, status code)... (dùng constructor)
+	+ hoặc dùng trực tiếp ResponseEntity.staticMethod (* dùng cách này) đây là 1 design pattern (builder pattern): Gọi trức tiếp đối tượng và sử dụng các static method -> được gợi ý + tên method có ý nghĩa  
+
+	return ResponseEntity.status(HttpStatus.CREATED).body(null);
+	Phần status có thể hash code 201 những nên dùng như trên ~ 201 nếu truy ngược lại 
+	Phần body chỉ được truyền vào giá trị của đối tượng T
+	Về phần headers -> đợi đến cookies 
+
+return ResponseEntity.ok(user); sẽ tương đương với return ResponseEntity.status(HttpStatus.CREATED).body(user);
+	-> hàm ok return về ok().body(T) (ok() -> HttpStatus.OK + body(T)) -> done
+
+Đối với Delete -> nên trả ra status code là 204 - no content + nếu muốn ko trả ra đối tượng ở Body dùng ResponseEntity<Void>
+
+
+
+
+Tài liệu: https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/http/ResponseEntity.html
+
+//responseEntity<void> nếu set body = null
+
+//lưu ý: endpoint nên viết số nhiều
+Ví dụ => user => users
+
+//update cho tất cả CRUD endpoint
+
+2 - Giải thích code (Extra)
+
+//tham khảo jhipster
+https://github.com/hoidanit-be-java-spring-rest/02-java-jhipster-with-filter/blob/master/src/main/java/com/mycompany/myapp/web/rest/DepartmentResource.java?ref_type=heads
+
+
+//builder pattern là 1 design pattern 
+https://springframework.guru/gang-of-four-design-patterns/builder-pattern/
+
+
 
 	
 

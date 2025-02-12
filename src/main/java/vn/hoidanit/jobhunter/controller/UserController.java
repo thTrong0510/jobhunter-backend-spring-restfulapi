@@ -2,6 +2,9 @@ package vn.hoidanit.jobhunter.controller;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,38 +25,33 @@ public class UserController {
         this.userService = userService;
     }
 
-    @GetMapping("/user/{id}")
-    public User getUser(@PathVariable("id") Long id) {
+    @GetMapping("/users/{id}")
+    public ResponseEntity<User> getUser(@PathVariable("id") Long id) {
         if (id == null) {
-            return null;
+            return ResponseEntity.status(HttpStatus.OK).body(null);
         }
-        return this.userService.fetchUserById(id);
+        return ResponseEntity.status(HttpStatus.OK).body(this.userService.fetchUserById(id));
     }
 
-    @GetMapping("/user")
-    public List<User> getAllUsers() {
-        return this.userService.fetchAllUsers();
+    @GetMapping("/users")
+    public ResponseEntity<List<User>> getAllUsers() {
+        return ResponseEntity.status(HttpStatus.OK).body(this.userService.fetchAllUsers());
     }
 
-    @PostMapping("/user")
-    public User createUser(@RequestBody User userJson) {
-        // User user = new User();
-        // user.setEmail("vthanhtrongng@gmail.com");
-        // user.setName("Thanh Trong");
-        // user.setPassword("Thanhtrong@0510");
-
+    @PostMapping("/users")
+    public ResponseEntity<User> createUser(@RequestBody User userJson) {
         User user = this.userService.saveUser(userJson);
-        return user;
+        return ResponseEntity.status(HttpStatus.CREATED).body(user);
     }
 
-    @DeleteMapping("/user/{id}")
-    public String deleteUserById(@PathVariable("id") long id) {
+    @DeleteMapping("/users/{id}")
+    public ResponseEntity<Void> deleteUserById(@PathVariable("id") long id) {
         this.userService.deleteUserById(id);
-        return "delete user" + id;
+        return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/user")
-    public User updateUser(@RequestBody User userJson) {
+    @PutMapping("/users")
+    public ResponseEntity<User> updateUser(@RequestBody User userJson) {
         User user = this.userService.fetchUserById(userJson.getId());
         if (user != null) {
             user.setEmail(userJson.getEmail());
@@ -62,6 +60,6 @@ public class UserController {
 
             user = this.userService.saveUser(user);
         }
-        return user;
+        return ResponseEntity.ok(user);
     }
 }
