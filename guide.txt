@@ -216,6 +216,35 @@ Lợi thế của postman so với browser:
 
 Để xem all thông tin của API thì bấm inspect + network + all + refresh + name({;}1) -> hiển thị bên phải là header + phần preview là thông tin GET về được 
 
+##V - API##
+
+1 - Test API trong Postman:
+- khi test url + method thì trong controller phải có url ứng với method đó nếu ko nó sẽ ko hoạt động 
+
+- Method GET: trường hợp create user ko dùng được method GET vì nó ko truyền được nhiều data, nếu dùng method GET phải truyền data trên URL (mà URL chỉ dài được 2048 kí tự -> hạn chế dữ liệu) + không an toàn thông tin 
+	-> Method GET chỉ nếu dùng là gửi yêu cầu để lấy thông tin từ server về client ~ chứ ko nên dùng để gửi thông tin từ client đến server
+	-> để gửi thông tin từ client -> server thì dùng method POST 
+	Khi bấm send (dùng API) thì nó cũng như dùng với trình duyệt cũng sẽ chạy code của controller của URL đó 
+
+- Method POST:
+	Truyền Data kèm theo request: trong postman có 1 option (dưới điền url) là body đối với 1 lời gọi request ta có thể đính kèm dữ liệu thêm cho nó 
+
+	chọn Body - raw - JSON: viết đối tượng người dùng muốn tạo hiện tại (model user: name, email, password)
+		{"name": "Van Huy", "email":"vanhuy@gmail.com", "password":"123"}
+	-> ở phía server làm sao để lấy được data này -> dùng Annotation @RequestBody
+	
+	@RequestBody
+	Tài liệu: https://docs.spring.io/spring-framework/reference/6.0/web/webmvc/mvc-controller/ann-methods/requestbody.html
+	cách dùng: bên trong tham số hàm controller đó dùng @RequestBody + Đối tượng -> nó sẽ mapping từ data trong postman đến đối tượng (tên thuộc tính trong JSON - tên trường thông tin của đối tượng) tức nó sẽ convert từ JSON -> kiểu dữ liệu đối tượng 
+	Khi ko set ID (mặc định ID sẽ = 0 hoặc = null) -> đối với Spring nó chỉ có 1 hàm là save() nếu ID = 0 || null nó sẽ mặc định hiểu là Create nếu ID khác thì nó sẽ hiểu là Update
+
+	Khi bấm send thay vì nhận 1 chuỗi String -> có thể nhận 1 đối tượng đã gửi lên (thông tin user lúc này sẽ khác so với thông tin user đã gửi lên = có thêm id) = cách thay dữ liệu trả về = 1 User 
+	
+
+
+
+
+
 
 
 
