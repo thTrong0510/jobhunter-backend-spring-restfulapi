@@ -233,12 +233,71 @@ Lợi thế của postman so với browser:
 		{"name": "Van Huy", "email":"vanhuy@gmail.com", "password":"123"}
 	-> ở phía server làm sao để lấy được data này -> dùng Annotation @RequestBody
 	
-	@RequestBody
+- Annotation @RequestBody
 	Tài liệu: https://docs.spring.io/spring-framework/reference/6.0/web/webmvc/mvc-controller/ann-methods/requestbody.html
 	cách dùng: bên trong tham số hàm controller đó dùng @RequestBody + Đối tượng -> nó sẽ mapping từ data trong postman đến đối tượng (tên thuộc tính trong JSON - tên trường thông tin của đối tượng) tức nó sẽ convert từ JSON -> kiểu dữ liệu đối tượng 
 	Khi ko set ID (mặc định ID sẽ = 0 hoặc = null) -> đối với Spring nó chỉ có 1 hàm là save() nếu ID = 0 || null nó sẽ mặc định hiểu là Create nếu ID khác thì nó sẽ hiểu là Update
 
 	Khi bấm send thay vì nhận 1 chuỗi String -> có thể nhận 1 đối tượng đã gửi lên (thông tin user lúc này sẽ khác so với thông tin user đã gửi lên = có thêm id) = cách thay dữ liệu trả về = 1 User 
+
+	Tại sao chỉ cầm thêm @RequestBody đã có thể convert từ JSON -> User (gửi data lên server) và ngược lại (nhận thông tin từ server)
+		Java JSON Data Binding
+		Data binding là quá trình convert JSON data thành Java POJO (Java Object) hoặc ngược lại.
+		Spring sử dụng Jackson Project (behind the scenes) đây là 1 thư viện được tự động kéo về khi cài thư viện spring-boot-starter-web 
+		link xem thông tin về Jackson https://github.com/FasterXML/jackson
+		link xem các thư viện trong spring-boot-starter-web: có Jackson https://github.com/spring-projects/spring-boot/blob/main/spring-boot-project/spring-boot-starters/spring-boot-starter-json/build.gradle
+
+- Annotation @PathVariable
+	Tài liệu: https://www.baeldung.com/spring-pathvariable
+	Sửa lại URL: POST (CREATE): http://localhost:8080/user
+	Làm chức năng xóa user by id: DELETE (Xóa): http://localhost:8080/user/${user-id}
+
+##2 - Tổng Kết Về RESTful (Basic)##
+- Chuẩn RESTful
+Ứng với tác vụ CRUD:
+
+GET (READ) - Đọc thông tin 
+	https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET
+	Được dùng để lấy data 
+	không truyền data ở body
+	Có thể truyền data ở url (ví dụ delete by id - @PathVariable)
+
+POST (CREATE) - Tạo mới thông tin 
+	https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST
+	Được dùng để truyền data lên Server 
+	Có thể truyền data ở body request (@RequestBody)
+
+PUT/PATCH  (UPDATE) - Cập nhật thông tin
+	https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/PUT
+	https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/PATCH
+	Được dùng để truyền data lên Server 
+	Có thể truyền data ở body request (@RequestBody)
+	PUT: cập nhật ghi đè lại nguyên đối tượng
+	PATCH: cập nhật ghi đè một số trường thông tin 
+	
+
+DELETE (DELETE) - Xóa thông tin
+	https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/DELETE
+	Được dùng để xóa data 
+	Có thể truyền data ở url (ví dụ delete by id - @PathVariable)
+
+##3 - Spring Data Rest Project (Extra)##
+Tài liệu: https://spring.io/projects/spring-data-rest
+
+1.Spring Data Rest
+Tự động tạo endpoint (api) ứng với domain (model) mà không cần viết code.
+	Ví dụ, bạn có Entity là User, nó sẽ tự động tạo : 
+	GET /users
+	POST /users …
+Có thể tùy chỉnh (customize) để phục vụ API của JPA, như paging, sorting…
+
+2. So sánh Spring Data Rest và @RestController  
+Nhược điểm của đứa này, là ưu điểm của đứa kia :v
+Spring Data Rest: code ngắn, phù hợp để phát triển ứng dụng một cách nhanh nhất có thể (vì code rất ít). Vì vậy, phù hợp để giải quyết tác vụ CRUD đơn giản.
+@RestController  :  code dài hơn. 100% kiểm soát code 
+
+
+
 	
 
 
