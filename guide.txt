@@ -419,27 +419,78 @@ Có 2 cách ném Exception:
 	Khi throw trực tiếp (ko dùn try..catch) thì đầu hàm phải có throws ...Exception nếu ko sẽ bị lỗi 
 
 Tồn đọng: khi khai báo như trên bên trong UserController.java
-- phạm vi hoạt động của function(@ExceptionHandler) chỉ nằm trong UserController -> cần định nghĩa khác để linh hoạt hơn
-- hiện tại khi tham số truyền vào là 1 chuỗi String -> nó sẽ ko chạy vào throw bên trong hàm mà sẽ throw ở ngoài hàm = exception mặc định -> cần xử lý bên ngoài bắt ngoại lệ bên ngoài controller đó tức là bug ko nằm trong phần body hàm mà xảy ra lúc convert ở các tham số khi truyền vào của hàm
+(1) phạm vi hoạt động của function(@ExceptionHandler) chỉ nằm trong UserController -> cần định nghĩa khác để linh hoạt hơn
+(2) hiện tại khi tham số truyền vào là 1 chuỗi String -> nó sẽ ko chạy vào throw bên trong hàm mà sẽ throw ở ngoài hàm = exception mặc định -> cần xử lý bên ngoài bắt ngoại lệ bên ngoài controller đó tức là bug ko nằm trong phần body hàm mà xảy ra lúc convert ở các tham số khi truyền vào của hàm
 	Cách 1: valid ở frontend 
 	Cách 2: chuyển kiểu dữ liệu thành String -> valid ở backend 
 
-Yêu cầu: 
-xử lý exception khi truy cập API:
-   http://localhost:8080/users/5a
-Ở đây: 5a là string (invalid)
+			Mô hình Spring Request Response 
+client --request--> controller 
+				----> local Exception (khai báo @ExceptionHandler bên trong 1 file java) --crash--> client
+				----> globle Exception 
+	local Exception -> chỉ dùng được trong 1 file 
+	-> cần chuyển nó ra thành globle Exception để dùng trong nhiều trường hợp để làm thì ta có 1 khái niệm gọi là AOP là 1 khái niệm chia cắt ứng dụng thành các thành phần ko quan hệ với nhau (các thành phần độc lập)
 
-Bước 1: Định nghĩa exception
-Tham khảo: https://stackoverflow.com/questions/8423700/how-to-create-a-custom-exception-type-in-java
+Giới thiệu về AOP
+https://docs.spring.io/spring-framework/reference/core/aop.html
 
-Bước 2: Xử lý exception
-https://springframework.guru/exception-handling-in-spring-boot-rest-api/
-@ExceptionHandler Annotation
+Tham khảo: https://github.com/hoidanit-be-java-spring-rest/02-java-jhipster-with-filter/tree/master/src/main/java/com/mycompany/myapp?ref_type=heads
+-> trong github này họ làm cho logging aop/logging trong này họ dùng các Annotation rất đặc biệt như @Aspect, @PointCut, ... dự án này sẽ dùng ControllerAdvice là 1 ứng dụng của AOP để can thiệp vào quá trình xử lý trước khi trả về phản hồi cho người dùng + ko tập trung code tại 1 file mà nó sẽ chịu trách nhiệm tất cả các file còn lại 
+				
 
-    @ExceptionHandler(value = BlogAlreadyExistsException.class)
-    public ResponseEntity handleBlogAlreadyExistsException(BlogAlreadyExistsException blogAlreadyExistsException) {
-        return new ResponseEntity("Blog already exists", HttpStatus.CONFLICT);
+Xử lý (1):  @ControllerAdvice
+
+-  Spring @ControllerAdvice https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/web/bind/annotation/ControllerAdvice.html
+
+Được giới thiệu từ version Spring Framework 3.2
+Xử lý @ExceptionHandler, @InitBinder, or @ModelAttribute được chia sẻ tại tất cả controller trong ứng dụng MVC
+Cũng có thể làm tương tự cho RESTful, tuy nhiên cần @ResponseBody
+
+@ResponseBody giúp convert Response trả về dưới dạng JSON
+Ví dụ 1: Xử lý với MVC
+@ControllerAdvice
+public class GlobalExceptionHandler {
+    @ExceptionHandler(value = Exception.class)
+   public ModelAndView defaultErrorHandler(HttpServletRequest req, Exception e) throws Exception {
+        ModelAndView mav = new ModelAndView();
+        mav.addObject("exception", e);
+        mav.addObject("url", req.getRequestURL());
+        mav.setViewName("error");
+        return mav;
     }
+}
+-> cấu hình và response ra view cho người dùng
+
+  Ví dụ 2: Xử lý với RESTful  
+// Handle custom exceptions across the application
+    @ExceptionHandler(CustomException.class)
+    @ResponseBody //phần cần thêm để có thể sử dụng ResponseEntity<T> phía dưới nếu k có ko dùng được  
+    public ResponseEntity<?> handleCustomException(CustomException ex, WebRequest request) {
+        ErrorDetails errorDetails = new ErrorDetails(
+                HttpStatus.BAD_REQUEST.value(),
+                ex.getMessage(),
+                request.getDescription(false));
+        return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
+    }
+
+Có 1 cách nữa để sử dụng với RESTFul, là sử dụng  @RestControllerAdvice
+
+@RestControllerAdvice được giới thiệu từ version 4.3
+
+https://docs.spring.io/spring-framework/docs/4.3.9.RELEASE/javadoc-api/org/springframework/web/bind/annotation/RestControllerAdvice.html
+
+So sánh @RestControllerAdvice và @ControllerAdvice: 
+https://stackoverflow.com/a/43124517
+
+@RestControllerAdvice = @ControllerAdvice + @ResponseBody
+
+@ControllerAdvice dùng được cho Spring MVC + Restful API (kèm theo dùng @ResponseBody)
+@RestControllerAdvice chỉ dùng cho Restful API (ra đời sau)
+	
+2 Annotation này sẽ can thiệp vào ném ra Exception @ExceptionHandler, khởi tạo giá trị @InitBinder, gán giá trị cho ModelAttribute @ModelAttribute -> can thiệp vào quá trình xử lý đây cũng là 1 Ứng dụng của AOP
+
+
+
 
 
 
