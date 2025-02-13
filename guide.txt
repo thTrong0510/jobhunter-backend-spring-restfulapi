@@ -393,6 +393,54 @@ https://github.com/hoidanit-be-java-spring-rest/02-java-jhipster-with-filter/blo
 //builder pattern là 1 design pattern 
 https://springframework.guru/gang-of-four-design-patterns/builder-pattern/
 
+====Chapter 6: Xử Lý Exception====
+
+##I - Throw Exception##
+
+https://github.com/hoidanit-be-java-spring-rest/02-java-jhipster-with-filter/blob/master/src/main/java/com/mycompany/myapp/web/rest/DepartmentResource.java?ref_type=heads
+
+//todo: // fetch user by id
+Xử ký ngoại lệ khi người dùng gửi lên sai thông tin thay vì việc ném ra massage exception mặc định -> customize là 1 exception do mình tự định nghĩa ko dùng hàm có sẵn 
+	- Tạo 1 class kế thừa lại Exception
+	- Tạo 1 class kế thừa lại RuntimeException
+Java có 2 loại Exception: checked Exception (lỗi dev pải handle: như người dùng truyền lên sai dữ liệu, ...) và unchecked Exception (null pointer exception)
+
+Có 2 cách ném Exception: 
+	ném exception ngay tại đầu hàm (khi truyền vào dữ liệu ko hợp lệ -> xử lý throw exception được) 
+	try..catch (khi truyền vào dữ liệu ko hợp lệ -> ko xử lý throw exception được) -> throw exception mặc định
+	-> 2 trường hợp này dùng với throw -> nó sẽ chỉ hiển thị lỗi ở Terminal ko hiển thị ra màn hình được -> cần sử dụng cái nào trả ra ResponseEntity(customize phần pản hồi ra client)
+
+	@ExceptionHandler dùng để trang trí cho 1 hàm (như 1 listener) mỗi lần xảy ra ngoại lệ (khi throw ra exception nào mà exception đó được gán vào value của @ExceptionHandler) -> sẽ chạy vào hàm này + ResponseEntity để trả customized exception cho Client 
+		@ExceptionHandler(value = IdInvalidException.class)		
+		public ResponseEntity<String> handleIdException(IdInvalidException idInvalidException) {	
+			return ResponseEntity.badRequest().body(idInvalidException.getMessage());
+		}
+	khi dùng dùng @Annotation này -> khi gặp lỗi cần throw trực tiếp thì nó mới chạy vào hàm xử lý của Annotation này - nếu dùng try..catch thì nó sẽ ko chạy vào
+	Khi throw trực tiếp (ko dùn try..catch) thì đầu hàm phải có throws ...Exception nếu ko sẽ bị lỗi 
+
+Tồn đọng: khi khai báo như trên bên trong UserController.java
+- phạm vi hoạt động của function(@ExceptionHandler) chỉ nằm trong UserController -> cần định nghĩa khác để linh hoạt hơn
+- hiện tại khi tham số truyền vào là 1 chuỗi String -> nó sẽ ko chạy vào throw bên trong hàm mà sẽ throw ở ngoài hàm = exception mặc định -> cần xử lý bên ngoài bắt ngoại lệ bên ngoài controller đó tức là bug ko nằm trong phần body hàm mà xảy ra lúc convert ở các tham số khi truyền vào của hàm
+	Cách 1: valid ở frontend 
+	Cách 2: chuyển kiểu dữ liệu thành String -> valid ở backend 
+
+Yêu cầu: 
+xử lý exception khi truy cập API:
+   http://localhost:8080/users/5a
+Ở đây: 5a là string (invalid)
+
+Bước 1: Định nghĩa exception
+Tham khảo: https://stackoverflow.com/questions/8423700/how-to-create-a-custom-exception-type-in-java
+
+Bước 2: Xử lý exception
+https://springframework.guru/exception-handling-in-spring-boot-rest-api/
+@ExceptionHandler Annotation
+
+    @ExceptionHandler(value = BlogAlreadyExistsException.class)
+    public ResponseEntity handleBlogAlreadyExistsException(BlogAlreadyExistsException blogAlreadyExistsException) {
+        return new ResponseEntity("Blog already exists", HttpStatus.CONFLICT);
+    }
+
 
 
 	
