@@ -489,6 +489,157 @@ https://stackoverflow.com/a/43124517
 	
 2 Annotation này sẽ can thiệp vào ném ra Exception @ExceptionHandler, khởi tạo giá trị @InitBinder, gán giá trị cho ModelAttribute @ModelAttribute -> can thiệp vào quá trình xử lý đây cũng là 1 Ứng dụng của AOP
 
+##II - Format Response before Sending (Part 1)##
+
+Tài liệu: https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/web/servlet/mvc/method/annotation/ResponseBodyAdvice.html
+
+1.Ví dụ về API trong thực tế
+
+Việc viết API này -> phục vụ cho dự án + đối tác (đồng nhất theo 1 chuẩn)
+
+https://developers.momo.vn/v2/#/docs/query_status
+
+Một kết quả trả ra của API, luôn cần có:
+Status code : 200, 201, …
+Message : miêu tả nếu có
+Data : nếu có
+
+Mỗi 1 công ty có 1 quy định khác nhau về format của phản hồi, tuy nhiên, tối thiểu API cần cung cấp 3 thông tin trên
+
+Mục tiêu: Trả về response theo format định sẵn
+Trường hợp thành công:
+{
+  statusCode: " ", //200 404
+  message: " ",
+  data: " "
+}
+
+Ví dụ:
+{
+    "statusCode": 201,
+    "message": "User Login",
+    "data": {
+        "access_token": "",
+        "user": { }
+    }
+}
+
+Trường hợp lỗi : 
+{
+    "message": " ",
+    "error": " "
+    "statusCode":" ",
+}
+Ví dụ: {
+    "message": "Username/password không hợp lệ!",
+    "error": "Unauthorized",
+    "statusCode": 401
+}
+
+
+2.Format Response
+
+Cách 1: sử dụng local với ResponseEntity -> gửi dữ liệu về client
+https://stackoverflow.com/a/44840010
+-> nhược điểm: ko linh động cần thêm thủ công -> có bao nhièu API pải thêm bấy nhiêu ResponseEntity
+
+Cách 2: sử dụng global với Controller Advice
+https://stackoverflow.com/a/52104852
+-> linh động hơn ~ như xử lý Exception 
+
+Bước 1: Định nghĩa format object
+
+public class RestResponse<T> {
+    private int statusCode;
+    private String error;
+
+    // message có thể là string, hoặc arrayList
+    private Object message;
+    private T data;
+
+}
+
+
+Bước 2: Sử dụng ControllerAdvice
+https://stackoverflow.com/a/51551663
+
+@ControllerAdvice
+public class FormatRestResponse implements ResponseBodyAdvice<Object> {
+	
+//đây là 2 method buộc override của interface ResponseBodyAdvice
+    @Override
+    public boolean supports(
+        MethodParameter returnType, 
+        Class converterType
+    ) {
+        return true;
+    }
+
+    @Override
+    public Object beforeBodyWrite(
+    Object body, 
+    MethodParameter returnType, 
+    MediaType selectedContentType,
+    Class selectedConverterType,
+    ServerHttpRequest request, 
+    ServerHttpResponse response
+) {
+    
+                // Check if the status code represents an error
+        if (status >= 400) {
+            //case error
+        } else {
+            //case success
+        }
+    }
+}
+
+- ở hàm supports có ý nghĩa cấu hình khi nào muốn ghi đè - khi nào format phản hồi của API 
+	-> return về true bất cứ phản hồi nào cũng ghi đè
+	-> sau này muốn check cho từng controller thì ghi logic vào đây
+	
+	-> return false thì nó sẽ ko format 
+
+- hàm beforeBodyWrite được chạy khi hàm supports trả về true 
+	Object body: là phản hồi chưa format
+	request: lời gọi từ client -> server 
+	response: thông tin trả về từ server -> client 
+	-> muốn lấy trạng thái của pản hồi pải thông qua response
+	
+	Nhưng đối với response thông thường -> sẽ không lấy về được status code cần ép kiểu nó về HttpServletResponse 
+	HttpServletResponse servletResponse = ((ServletServerHttpResponse)response).getServletResponse();
+
+- cấu hình lại phần response:
+	int status = servletResponse.getStatus();
+
+        RestResponse<Object> restResponse = new RestResponse<Object>();
+        restResponse.setStatusCode(status);
+        if (status >= 400) {
+            // case error
+            restResponse.setError("CALL API FAIL");
+            restResponse.setMessage(body);
+        } else {
+            // case success
+            restResponse.setData(body);
+            restResponse.setMessage("CALL API SUCCESS");
+        }
+        return restResponse;
+
+Tới đây nếu test api truyền sai dữ liệu lên -> vẫn chưa hoạt động đúng vì nó sẽ chạy ResponseBodyAdvice<Object> trong FormatRestResponse.java trước khi chạy vào GlobalException.java có 2 cách để xử lý thứ tự:
+	- dùng Annotation Order 
+
+- Khi cấu hình xong class này thì mọi phản hồi từ Server -> Client để sẽ chạy vào đây chứ ko phải phần return của từng API nữa 
+
+3 - Cấu hình Phần Globla Exception + Global Response: dùng @ControllerAdvice, @ResponseBody || @RestControllerAdvice
+- Khi gọi API thành công -> chạy vào controller -> đến return ResponseEntity.status(HttpStatus.OK).body(this.userService.fetchUserById(id)); -> chạy sang FormatRestResponse(globla Response chạy qa 2 hàm supports -> beforeBodyWrite) -> response về cho client
+
+- Khi gọi ko thành công -> chạy vào throw new IdInvalidException("user ko ton tai"); -> chạy vào class IdInvalidException -> chạy vào GlobalException.java -> FormatRestResponse (Global Response chạy qa 2 hàm supports -> beforeBodyWrite) -> response về cho client
+
+** tất cả test cho API /users/{id} với kiểu kiểm tra đơn giản là id có tồn tại hay ko **
+
+
+
+
 
 
 
