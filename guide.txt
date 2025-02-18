@@ -1012,7 +1012,81 @@ nhiệm vụ cuối cùng là trả ra UserDetails theo đúng kiểu trả về
                 user.getPassword(),
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
 
+##VIII -  Debug Code (Extra)##
+1.Xử lý Exception
+Validate dữ liệu username/password (không được để trống)
 
+Validate trường hợp username/password đã truyền lên, nhưng không hợp lệ, bao gồm email không tồn tại/hợp lệ và sai password
+
+Advance: handle tất cả exceptions, tham khảo https://drive.google.com/file/d/1j5IikoDtR9de0Mw-1QkH41_gCMCZ62FJ/view
+
+//hiện tại, chưa xử lý exception của security (sẽ được xử lý cùng với việc validate jwt)
+https://www.baeldung.com/spring-security-exceptionhandler
+
+2.Luồng Debug
+
+Kỹ năng debug: https://code.visualstudio.com/docs/editor/debugging
+
+Debug từ ban đầu: khi dùng postman gửi request -> api: /login 
+- đặt debug và dừng tại: UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
+                loginDTO.getUsername(), loginDTO.getPassword()); trong controller url: /login 
+	Step into: chạy vào loginDTO getUsername(), getPassword() -> chạy đến hàm tạo UsernamePasswordAuthenticationToken() -> gọi đến super() cha của nó AbstractAuthenticationToken .... sau khi xử lý xong phần cha -> qay lại gán giá trị principal = username, credentials = password... trong hàm khởi tạo sau đó qay về lại controller /login chạy đến lệnh kế tiếp trong controller
+
+- tiếp theo đặt debug và dừng tại: Authentication authentication = authenticationManagerBuilder.getObject().authenticate(authenticationToken); dùng step into đầu tiên chạy vào pần xử lý của .getObject()... sau đó chạy vào authenticate() -> chạy vào hàm authenticate() của ProviderManager (thực chất hàm authenticate() này là của interface authenticationManager mà class ProviderManager kế thừa lại và được thực thi lúc này) trong hàm authenticate() này nó sẽ chạy vào vòng lặp để chọn ra Provider thích hợp đối với dự án hiện tại size của vòng lặp = 1 tức là chỉ có 1 Provider được xét vì đăng nhập = username và password chính là DaoAuthenticationProvider nếu bên trong phần config/SecurityConfiguration.java có cấu hình thêm phần đăng nhập khác (như đăng nhập dùng third party) thì size sẽ tăng lên và số lượng provider được cung cấp để scan cũng nhiều lên hiện tại chỉ cấu hình đơn giản/mặc định là đn = username, password... cứ step into sẽ tới 1 bước nó xử lý phần token mình gửi vào hàm authenticate() lấy ra principal(email) thông qua hàm getPricipal() của class UsernamePasswordAuthenticationToken ...
+
+- tới bước trên cứ step into cho nó xử lý việc lấy và kiểm tra principal cuối cùng nó sẽ chạy vào function retrieveUser() bên trong DaoAuthenticationProvider trong này nó có kiểm tra việc hash password = cách nào (hiển thị cấu hình bên trong /config/SecurityConfiguration) cứ step into có phần hash phần password gửi từ client vào ... chạy các kiểu trong hàm retrieveUser() đến UserDetails loadedUser = this.getUserDetailsService().loadUserByUsername(username); username lúc này chính là email từ client gửi lên -> khi step into nó sẽ chạy vào loadUserByUsername(username) cái mà mình đã customize UserDetailsCustom là cấu hình để nó ghi đè lại cái mặc định, cứ step into cho đến return -> nó sẽ chạy lấy các thông tin sau đó vào hàm construct tạo ra User của Security cuối cùng là check các trường như accountNonExpired, accountNonLocked, credentialsNonExpired,... nhưng hiện tại khi khởi tạo mặc định nó sẽ = true hết nên sẽ pass khi check ...
+
+- cuối cùng nó sẽ thực hiện xong function authenticate() -> trả giá trị về và qay lại controller (url: /login) và return ra ResponseEntity kết thúc 
+
+Lưu ý: hiện tại luồng này chưa có nạp thông tin vào SecurityContextHolder
+
+AuthenticationManager
+
+ProviderManager (hàm authenticate)
+
+=> quét ra DaoAuthenticationProvider
+
+UserDetail
+
+3. thực hiện bắt các Exception:
+- khi người dùng nhập sai thông tin tài khoản hoặc ko nhập có điều chỉnh code
+- ý tưởng sẽ xuất phát từ controller (tức là khi request gửi lên đã qua các filter vào được controller -> nếu có bất kì lỗi gì đều có thể bắt được - một số lỗi chưa tới controller nó đã bị -> chưa bắt được ở hiện tại)
+- ở đây sẽ Validate thông tin gửi lên vào LoginDTO -> dùng @Valid để validate trực tiếp ngay bên trong model để dùng được nó thì cần cài dependency:
+	implementation("org.springframework.boot:spring-boot-starter-validation")
+- cách sử dụng: all annotation validate đều nhờ cài dependency package(jakarta.validation...)
+	+ chỉnh lại đầu vào của controller thêm @Valid trước tham số cần kiểm tra: public ResponseEntity<LoginDTO> login(@Valid @RequestBody LoginDTO loginDTO)
+	+ cấu hình cách validate trong model LoginDTO:
+	@NotBlank(message = "username can't be blank")
+    	private String username;
+
+	@NotBlank(message = "password can't be blank")
+    	private String password;
+- khi làm đến đây -> khi chạy gửi lên thông tin lỗi nó vẫn sẽ gửi Exception mặc định của Security chỉ cấu hình sơ defaultMessage chính là cái message mình valid trong model 
+
+- đọc phần trace của lỗi trên postman thì thấy bị exception: MethodArgumentNotValidException được ném ra -> cần cấu hình lại cái này cấu hình bên trong GlobalException.class:
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<RestResponse<Object>> validationError(MethodArgumentNotValidException ex) {
+        BindingResult result = ex.getBindingResult();//dùng BindingResult để lấy ra message lỗi 
+        final List<FieldError> fieldErrors = result.getFieldErrors();
+
+        RestResponse<Object> res = new RestResponse<>();
+        res.setStatusCode(HttpStatus.BAD_REQUEST.value());
+        res.setError(ex.getBody().getDetail());
+	// 3 dòng này để set các thông tin mặc định
+
+        List<String> errors = fieldErrors.stream().map(f -> f.getDefaultMessage()).collect(Collectors.toList());
+	//từ dạng list chuyển sang dạng stream thì mới dùng lamda được lấy ra all message sau đó convert người lại dạng List dùng collect gán nó lại vào 1 array String 
+        res.setMessage(errors.size() > 1 ? errors : errors.get(0));
+	//gán array lỗi nếu có hơn 1 lỗi thì gán nguyên array vào, ngược lại chỉ gán 1 chuỗi string 
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
+    }
+
+- khi làm tới đây nếu trường hợp 1 trong 2 hoặc cả 2 username, password khi gửi request ko điền thông tin -> sẽ bắt được và xử lý lỗi 
+
+- trường hợp ko bắt được: nếu nhập thông tin của username hoặc password sai -> sẽ throw ra exception BadCredentialsException mặc định ko bắt được vì nó lỗi trước khi mặc dù trong GlobalException.class có cấu hình bắt exception này -> nó chưa chạy vào đây nó đã bị lỗi 
+
+- sẽ xử lý sau (thực tế có 1 số cách bắt all exception)
 
 
 
