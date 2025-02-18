@@ -30,4 +30,8 @@ public class UserService {
     public List<User> fetchAllUsers() {
         return this.userRepository.findAll();
     }
+
+    public User fetchUserByEmail(String email) {
+        return this.userRepository.findByEmail(email);
+    }
 }

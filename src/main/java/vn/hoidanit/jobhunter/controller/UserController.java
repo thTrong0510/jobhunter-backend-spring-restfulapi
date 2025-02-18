@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,10 +20,12 @@ import vn.hoidanit.jobhunter.service.exception.IdInvalidException;
 @RestController
 public class UserController {
 
+    private final PasswordEncoder passwordEncoder;
     private final UserService userService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, PasswordEncoder passwordEncoder) {
         this.userService = userService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @GetMapping("/users/{id}")
@@ -44,6 +47,7 @@ public class UserController {
 
     @PostMapping("/users")
     public ResponseEntity<User> createUser(@RequestBody User userJson) {
+        userJson.setPassword(passwordEncoder.encode(userJson.getPassword()));
         User user = this.userService.saveUser(userJson);
         return ResponseEntity.status(HttpStatus.CREATED).body(user);
     }

@@ -637,6 +637,393 @@ Tới đây nếu test api truyền sai dữ liệu lên -> vẫn chưa hoạt �
 
 ** tất cả test cho API /users/{id} với kiểu kiểm tra đơn giản là id có tồn tại hay ko **
 
+====Chapter 7: Spring Security với Json Web Token====
+**Bảo vệ APIs với cơ chế JWT của mô hình Stateless
+
+##I - Mô hình Stateful và Stateless##
+Tương tự khi so sánh Monolithic và Microservice
+
+1.Keyword hay gặp
+Lưu ý 1: Không nên dịch nghĩa, thay vào đấy là nên “cảm nhận” ý nghĩa của nó.
+Lưu ý 2: các dịch nghĩa bên dưới mang tính chất tương đối. Bạn có thể google để xem “cách định nghĩa” chính xác nhất.
+
+Stateful = state application + full : chứa đầy state của application
+Lưu trữ thông tin bên trong ứng dụng, ví dụ như thông tin người dùng đăng nhập
+	Session : phiên đăng nhập. Được dùng trong mô hình Stateful, cách mà ứng dụng lưu trữ data giữa các lợi gọi request
+
+Stateless = state application + less : không chứa state của application
+Không lưu trữ thông tin trong ứng dụng (nothing at all)
+
+Monolithic: (architecture) all-in-one : bạn code tất cả mọi thứ trong 1 dự án. Ví dụ như mô hình MVC truyền thống tự code controller, model, view, ... all things chỉ nằm trong 1 dự án java 
+
+Microservice: (architecture): single-unit : bạn chia code thành các “thành phần riêng lẻ” (module/service), mục đích là giảm sự phụ thuộc giữa các thành phần, và tăng tính mở rộng
+
+
+2. Stateful và Stateless
+
+Stateful = Monolithic (Spring MVC)
+
+Stateless = Microservice (Restful API)
+
+Không có khái niệm Monolithic hay Microservice tốt hơn, cái nào cũng có ưu và nhược điểm của nó. Việc bạn cần làm, là lựa chọn công nghệ sao cho nó “phục vụ tốt với mục đích của bạn”
+
+3.Tại sao chúng ta chọn Stateless thay vì Stateful (khóa MVC - Monolithic) ?
+
+- Sử dụng RESTful API, thông thường (hay dùng nhất) là áp dụng cho mô hình Stateless.
+- Có nghĩa rằng, bạn sẽ chia tách code thành Frontend và Backend riêng lẻ (không phụ thuộc vào công nghệ)
+
+Ví dụ:
+Frontend:  bạn code với Angular/Vue/React. 
+Hoặc thậm chí chỉ là HTML, CSS, Javascript (AJAX)
+
+Backend: sử dụng bất cứ ngôn ngữ backend nào bạn muốn, như Javascript, Java, PHP…
+Javascript : Express, Nestjs…
+Java: Java Spring
+PHP: Laravel
+C# : .Net
+Python: Django
+Ruby: Ruby on Rail …
+
+- RESTful API là cầu nối giữa frontend và backend. Điều này lý giải:
+	+ Frontend sẽ không thể thao tác với database (CRUD dữ liệu), mà cần làm gián tiếp qua API
+	+ Backend sẽ không cần code giao diện, chỉ thực hiện nhiệm vụ thao tác với dữ liệu (lưu trong database) và tạo ra API cho frontend dùng. 
+- Chúng ta đang làm nhiệm này (tạo ra RESTful API)
+
+4. Cơ chế xác thực của Stateless
+Trong mô hình Stateless, không tồn tại khái niệm “Session”, thay vào đấy là “Token”
+
+- Cơ chế xác thực dựa vào Session (Stateful)
+	Bước 1: login với username/password
+		Nếu login thành công, server sẽ tạo lưu thông tin tại: Client thông qua cookies (lưu SESSION_ID)
+		Server trong memory (RAM) hoặc database (lưu full thông tin của user login)
+
+	Bước 2: Mỗi lần người dùng F5 (refresh) website gửi 1 request  từ client lên server, các bước làm tại Server:
+		Client sẽ gửi kèm SESSION_ID (thông qua cookies)
+		Server sẽ kiểm tra SESSION_ID có đang tồn tại hay không ? Nếu có, tiếp tục việc truy cập như thông thường (else, logout)
+
+Mô hình Stateful với Session chỉ áp dụng hiệu quả, khi và chỉ khi bạn kiểm soát cả frontend và backend
+
+Nhược điểm: chỉ giao tiếp giữa client và server -> nếu muốn viết ứng dụng cho mobile, desktop, đối tác, ... (server -> server) -> cần mô hình Stateless để giải quyết 
+
+- Cơ chế xác thực dựa vào Token (Stateless)
+với mô hình này t ko kiểm soát all thông tin 
+Server với Server, mobile app, desktop app…  (những cái không có cookies)
+
+Token: là 1 chuỗi ký tự đã được mã hóa (chỉ Server mới có thể hiểu) 
+Ví dụ: adfasdfasdfasdfxyadfyajsdfasdfad
+có 1 cơ chế sinh token: JSON Web Token
+
+Bước 1: login với username/password
+Nếu login thành công, server sẽ tạo token, lưu tại đâu, client tự quyết định.
+Server không lưu bất cứ thông tin gì về việc user login 
+
+Bước 2: Mỗi lần người dùng F5 (refresh) website gửi 1 request  từ client lên server, sẽ cần gửi kèm token đã có tại bước 1.
+Server sẽ giải mã token để biết được user có hợp lệ hay không ?
+
+##II - JSON Web Token (JWT)
+Tài liệu:
+https://jwt.io/
+
+1.JWT là gì ?
+https://jwt.io/introduction
+- cho phép tạo 1 chuỗi kí tự ngẫu nhiên 
+- Là một chuỗi ký tự được “mã hóa” (thông qua thuật toán) và có tính bảo mật cao.
+- Được sử dụng để trao đổi thông tin giữa các hệ thống với nhau (server - server, client - server)
+
+2. Cấu trúc của JWT
+Gồm: 
+	Header: quy định thông tin của token: thuật toán sử dụng, ...
+	Payload (đây là cái chúng ta quan tâm nhất): data chứa trong token, thông tin định danh của người dùng (không có lưu mật khẩu)
+	Signature: giúp tăng thêm độ mạnh mẽ, bảo mật của token như đặt mật khẩu để giải mã token 
+ba thông tin này ngăn cách nhau bởi dấu chấm 
+
+-> dùng đến Spring Security - cấu hình nó 
+- ở Spring MVC để đăng nhập chúng ta cấu hình provider:
+	+ DaoAuthenticationProvider
+	+ third party thì dùng: OidcAuthenticationProvider, OAuth2AuthenticationProvider
+
+đối với dự án này sẽ tìm hiểu về JwtAuthenticationProvider
+
+##III - Cơ chế mặc định của Spring Security##
+
+Tạo class config/ConfigConfiguration.java -> để biến class này thành cấu hình -> dùng Annotation Configuration dùng cái này khi ứng dụng chạy nó sẽ dùng component scan nó sẽ quét all component đối với component nào có Annotation Configuration nó sẽ đưa vào phần cấu hình việc code trong class có Annotation này sẽ ghi đè lại các cấu hình mặc định của Spring kế từ Version 5.8 sẽ dùng qa Bean chứ ko kế thừa các interface cần thiết
+
+Ngoài Annotation configuration còn có EnableMethodSecurity: 
+	có nhiều level để xác thực người dùng: mỗi 1 lần gửi request lên phía server -> cần xác thực hoặc xác thực tại lớp method 
+
+đối với dự án ban đầu đã disable phần Security: ở file main
+//disable security
+@SpringBootApplication(exclude = {
+		org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class,
+		org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration.class
+})
+// @SpringBootApplication
+
+1. Cấu hình Password Encoder: https://drive.google.com/file/d/1g8vEafVNLmO63V_2RrOmQQDTi8NMkMds/view
+- ghi đè phần mã hóa password của Security
+- để mã hóa mật khẩu của người dùng
+
+//todo : hoàn thiện tính năng CREATE user với hash Password
+passwordEncoder.encode()
+admin@gmail.com abc
+user@gmail.com abc
+thtrong@gmail.com abc
+
+2. Enable Security 
+- vào file main file đầu tiên ứng dụng chạy lên
+- comment cái disable security đi và enable cấu hình mặc định lên 
+- sau khi enable nó lênn nó sẽ cấu hình mặc định rất nhiều lớp filter pải đi qa trước khi đến với các endpoint của controller 
+(lúc này khi vào postman gửi request -> lỗi 401 unauthorized)
+- mặc định nó đã bảo vệ all endpoint, tài nguyên nếu muốn truy cập -> cần đăng nhập 
+- lúc này khi truy cập ứng dụng qa browser -> thì sẽ bị văng về trang login (dùng cho mô hình MVC stateful) nhưng đối với ứng dụng này dùng mô hình stateless tức là dùng JWT để truy cập -> ko cần form login này 
+
+- tiếp theo cần cấu hình thêm phần security để có thể truy cập vào được một số url: cấu hình http cần ghi đè lại 1 phần cấu hình tên là SecurityFilterChain 
+	+ những API gửi lên server thực tế là 1 lời gọi của http -> cần cấu hình http.authorizeHttpRequests
+		đầu tiên enable session lên: 
+		.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+		bởi vì mặc định spring Security theo mô hình STATEFUL -> trong pần session pải cấu hình lại STATELESS
+	+ phần cấu hình mặc định hiển thị ra trang login, hay đăng nhập = basic form, truy cập mọi endpoint pải cần xác thực ... nằm ở class SpringBootWebSecurityConfiguration.class nhưng trong ứng dụng này dùng JWT -> override lại 
+
+##IV - OAuth Flow##
+
+hiểu tổng quan để tự viết một vài Filter -> để khi client gửi request lên server pải đi qa filter này nhiệm vụ của filter này sẽ giải mã token mà client gửi lên 
+chức năng của filter: 
+	lấy JWT token từ header mà người dùng gửi lên 
+	load user lên -> ghi đè lại pần này 
+	cần validate token (viết thêm 1 service để giải mã/validate, mã hóa, tạo,... token)
+	cuối cùng nạp vào SecurityContextHolder 
+
+1. Lưu ý về cách code JWT với Spring
+
+KHÔNG LÀM NHƯ CÁC VÍ DỤ BÊN DƯỚI: ĐÂY LÀ CÁCH CODE CHO CHẠY ĐƯỢC, KHÔNG PHẢI LÀ CÁCH CÔNG TY LÀM, VÌ NÓ TIỀM ẨN RỦI RO VỀ SECURITY
+
+https://www.geeksforgeeks.org/spring-boot-3-0-jwt-authentication-with-spring-security-using-mysql-database/
+
+https://www.youtube.com/watch?v=KxqlJblhzfI
+
+Giải thích quy trình code cho chạy được:
+
+Bước 1: Cài đặt các thư viện hỗ trợ JWT (encode/decode)
+Bước 2: Viết Filter (tạm gọi là jwtFilter) để xử lý cho JWT
+Filter này sẽ được chạy trước khi Spring Security xử lý (chạy các Filter khác)
+
+jwtFilter sẽ có nhiệm vụ decode/verify (giải mã và xác thực tính hợp lệ) của JWT mà client truyền lên
+
+2. OAuth là gì ?
+
+Để mở rộng mô hình và chuyển sang mô hình kiểu service (các client, server, service,... có thể kết nối/sử dụng dịch vụ được) -> Spring sử dụng giải páp sử dụng tiêu chuẩn OAuth (open auhthorization) 
+
+OAuth (open auhthorization) tức là việc xác thực người dùng ntn, người dùng có quyền hạn ntn sử dụng rộng rãi trong mô hình Microservice 
+
+Tham khảo: 
+https://www.youtube.com/watch?v=ZV5yTm4pT8g
+https://www.youtube.com/watch?v=ZDuRmhLSLOY
+
+OAuth (Open Authorization) là một chuẩn (standard) dùng để xác thực thông tin người dùng thông qua token. (từ 2012)
+Tham khảo (v2.0): https://datatracker.ietf.org/doc/html/rfc6749
+
+Được ứng dụng rộng rãi trong mô hình stateless (microservice) khi một ứng dụng liên quan tới nhiều dịch vụ (service)
+
+Các vai trò (role) khi sử dụng OAuth:
+Resource Owner : người sử hữu nguồn tài nguyên, thông thường chính là User - người sở hữu tài khoản của họ.  Ví dụ, bạn là chủ sở hữu của tài khoản Facebook do bạn tạo ra
+
+Resource Server: nơi hosting dữ liệu của người dùng. Ví dụ, tài khoản Facebook của bạn sẽ được lưu trữ tại server nào đó do Facebook Quản lý
+
+Client: Ứng dụng muốn truy cập/sử dụng thông tin của người dùng
+
+Authorization Server: nơi chịu trách nhiệm tạo ra access-token để cho Client sử dụng Resource Server (sau khi đã được Resource Owner cho phép)
+
+Ví dụ:
+https://www.codeproject.com/Articles/1171546/OAuth-Authorization-flows-explained-with-examples
+như vào github thực hiện chức năng đăng nhập với Google: 
+	Resource Owner là người dùng người sở hữu tài khoản Google là người có quyền cấp phép 
+	Resource Server là server của Google
+	Client: là trang Github
+	Authorization Server nó là của Google bởi vì chỉ có Google mới biết thông tin tài khoản đăng nhập được nhập vào có đúng hay không -> khi bấm vào đăng nhập thì quá trình Authorization nó sẽ xảy ra tại Google tại Authorization Server nó sẽ kiểm tra và nếu đúng nó sẽ trả lại thông tin cho Client(Github) như AccessToken 
+	khi có AccessToken Client sẽ Query trực tiếp đến Resource Server để lấy tài nguyên
+
+##V -  Spring và OAuth##
+Hướng dẫn tích hợp OAuth
+
+1. Lịch sử ra đời và sử dụng với Spring
+
+Spring là 1 Hệ Sinh thái (Frame Work): Spring Security nếu nói ở trong Frame Work Spring thì là thư viện nhưng với mô hình của nó có thể nói nó là 1 Frame work khác
+
+- Trước 2022: Spring Security OAuth
+https://spring.io/blog/2022/06/01/spring-security-oauth-reaches-end-of-life
+dự án này end of life: ko được pát triển nữa -> đưa ra 2 sự lựa chọn 
+	+ sử dụng tính năng có sẵn của Spring Security(OAuth 2.0) ra đời khi vừa có Spring Security về ưu điểm là đã tích hợp sẵn trong Spring Security -> ko cần cài thêm gì và có thể giải quyết vấn đề, nhược khó bảo trì vì nó liên quan qá nhiều tới Spring từ trước đến nay -> ko thể linh hoạt khó thay đổi chỉnh sửa nhiều (theo mô hình Statefule)
+	-> nếu mún sử dụg với nhu cầu nhỏ, ko thay đổi nhiều nên sử dụng của Spring Security
+	Đối với ứng dụng này sẽ dùng cái này chứ ko dùng cái mới 
+
+	+ sử dụng dự án Spring Authorization Server (1 thư viện/Frame work khác của Spring) cái này là cái cập nhật cho công nghệ OAuth2 mới nhất (OAuth 2.1) ra đời năm 2022 ưu điểm ko phụ thuộc vào cái gì cả và luôn cập nhật cái mới nhất (theo mô hình Stateless đang tách riêng ra) -> ko dính nhiều tới các dự án Spring khác -> có thể thay đổi linh hoạt 
+	-> nếu mún controll hết, thay đổi linh hoạt, update nhanh mới nên dùng thư viện/frame work mới này 
+
+2 cái này chính là tác nhân Authorization Server trong mô hình OAuth2 
+
+https://github.com/spring-attic/spring-security-oauth
+dự án này đag ở trạng thái publish archive: là trạng thái hoàn thành rồi + ko được bảo trì nữa -> nếu có bugs hoặc công ngệ mới sẽ ko được cập nhật 
+-> cân nhắc khi sử dụng 
+
+- Sau 2022 : có 2 dự án (project) nổi bật hỗ trợ OAuth là:
+Spring Security (hỗ trợ OAuth 2.0) là 1 tính năng tích hợp sẵn 
+https://docs.spring.io/spring-security/reference/6.1/servlet/oauth2/index.html
+Khi làm Spring MVC vào link này chỉ đụng tới Authentication + Authorization chứ chưa đụng vào package OAuth2 -> đây sẽ là pần làm trong ứng dụng này (nằm trong Spring Security) trong package này sẽ sử dụng OAuth2 Resource Server bởi vì hiện tại ứng dụng sẽ xác thực người dùng + tạo token nên pải dùng pần này, ko sử dụng OAuth2 Client vì cần request tới 1 nơi nào đó để lấy token trong khi ứng dụng tự tạo token chứ ko lấy từ Client nào (nếu muốn làm thủ công pải + 1 dự án java nữa để làm pần này), nếu muốn làm login cho gg hoặc face -> cần code 1 ứng dụng giúp Authorization cho 2 app 
+
+https://github.com/spring-projects/spring-security
+
+
+Spring Authorization Server (hỗ trợ OAuth 2.1): đây cũng là 1 dự án khác Spring Security tạo ra để bảo vệ Endpoint (cùng cấp với Spring Security)
+https://spring.io/projects/spring-authorization-server
+https://github.com/spring-projects/spring-authorization-server
+
+Spring Security: 
+	Gắn liền với hệ sinh thái của Spring, gần như là default (cấu hình mặc định) khi liên quan tới việc Authentication/Authorization
+	Một sự thay đổi nhỏ thôi, cũng có thể là breaking-change, khi có quá nhiều ứng dụng phụ thuộc vào nó. Cơ mà, tích hợp luôn OAuth thì quá tuyệt vời (all-in-one)
+
+Spring Authorization Server: 
+	Ra đời muộn hơn Spring Security (2022) : https://spring.io/blog/2022/11/22/spring-authorization-server-1-0-is-now-ga
+	Up to date với Security, có nghĩa là cập nhật những cái mới nhất, ví dụ OAuth 2.1
+	Là một dự án độc lập (base dự trên Spring Security)
+
+
+2. Mô hình áp dụng
+https://docs.spring.io/spring-security/reference/servlet/oauth2/index.html#oauth2-resource-server
+
+- Cài đặt dependencies:
+implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+Fix lỗi không cài đặt dependency:
+Bước 1: thêm dependency vào file build của gradle (lưu ý là trong video mình có yêu cầu thay đổi, vì lúc quay video mình có bug)
+	implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+Bước 2: nhấn chuột phải vào file build.gradle.kts => chọn Reload Projects
+
+- Với OAuth2, chúng ta cần:
+	Auth Server (Authentication/Authorization): nơi xác định người dùng có tồn tại hay không  ? Nếu có,  người dùng có quyền hạn gì sau khi đã xác thực/đăng nhập thành công)
+	Resource Server : nơi chứa nguyền tài nguyên (data) mà người dùng muốn truy cập
+
+Áp dụng vào bài toán của chúng ta: (cách làm đơn giản nhất)
+
+Client : React
+
+Server : Java Spring (chỉ có 1 server) - all in one
+=> server này cần làm các nhiệm sau: (nơi cung cấp tài nguyên, tạo token, xác thực người dùng luôn)
+	Xác thực người dùng (authentication): chức năng login. 
+	Xác định quyền hạn của người dùng (authorization) : permission và role
+	Sau khi đã xác thực và đảm bảo người dùng “phù hợp”, server cho phép client truy cập nguồn tài nguyên (thông qua api)
+
+##VI - Login Flow##
+1.Mô hình MVC
+https://docs.spring.io/spring-security/reference/servlet/authentication/architecture.html
+
+Mô hình chung: khi login nó sẽ chạy qa các filter chains kế thừa lại abstract AbstractAuthenticationProcessingFilter -> authentication -> authenticationManager (ở đây nó sẽ check dùng cơ chế gì để đăng nhập + authenticated ? thông tin đăng nhập):
+	+ nếu đúng -> SessionAuthenticationStrateyg + SecurityContextHolder(*) + RememberMeServices + ApplicationEventPublisher + AuthenticationSuccessHandler (chủ yếu là lưu thông tin vào * để mình xử lý)
+	+ nếu sai -> SecurityContextHolder + RememberMeServices + Authentication (ném ra exception)
+
+
+- đối với ứng dụng này:
+Khi bạn nhấn nút login, sẽ gửi request lên server và trigger filter.
+khi đăng nhập = username + password -> Filter được gọi ở đây là UserNamePasswordAuthenticationFilter trong này lần lượt gọi tới: 	
+	UsernamePasswordAuthenticationToken(1)
+	AuthenticationManager - pần này nó sẽ là phần gọi authenticate() (2)
+		ProviderManager
+		DaoAuthenticationProvider(Provider xử lý trường hợp đăng nhập = username và password) đối với Provider này có function: UserDetails loadUserByUsername(String username)
+
+	-> success -> tương tự như mô hình chung là lưu thông tin vào SecurityContextHolder 
+	-> Fail -> throw exception
+
+Ở đây có 1 vấn đề: đối với mô hình stateless ko hề có form login khi đăng nhập -> k thể trigger phần Security được bởi vì ko có function nào gọi trực tiếp đến UserNamePasswordAuthenticationFilter -> thay vì vậy t sẽ tự tạo chay từng thành pần:
+	(1) -> tự tạo token 
+	(2) -> tự gọi đến phần AuthenticationManager -> gọi hàm authenticate() 
+	-> đăng nhập success -> tự lưu thông tin vào SecurityContext 
+
+
+2. Đối với Mô Hình Stateless - các bước thực hiện vấn đề trên
+Bạn không có form login để trigger filter, thay vào đấy là API endpoint.
+Bước 1: bạn submit api với username/password
+
+Bước 2: Spring sẽ không trigger Filter nào hết, mà sẽ chạy thẳng vào controller, nơi bạn định nghĩa endpoint (vì cơ chế JWT là cơ chế không được xây dựng sẵn của Spring)
+
+=> chúng ta cần viết logic để xử lý đăng nhập người dùng (kế thừa tương tự logic của UserNamePasswordAuthenticationFilter )
+Why ?
+Vì khi làm theo luồng của Spring Security, chúng không cần bận tâm về quá trình so sánh mật khẩu user và nạp thông tin user vào Security Context (đế tái sử dụng - tương tự như Session)
+
+//tạo token với username và password được nạp lên từ client 
+ UsernamePasswordAuthenticationToken authenticationToken 
+= new UsernamePasswordAuthenticationToken(username, password) 
+
+//truyền token vào authenticationManagerBuilder (chính là bước ở AuthenticationManager)
+//authenticate() -> xác thực password và username gửi lên có đúng hay ko gián tiếp thông qa token
+Authentication authentication = authenticationManagerBuilder.getObject().authenticate(authenticationToken);
+
+//-> sau khi ở AuthenticationManager -> cần authenticated -> gọi đến UserDetails LoadUserByUserName(String username) -> cần override lại: ở đây sẽ giải mã token -> lấy user từ database lên so sánh 
+
+//nạp thông tin (nếu xử lý thành công) vào SecurityContext để tái sử dụng thông tin của người dùng giữa các lời gọi request ở mô hình stateless ko sử dụng session -> bây h muốn từ controller gọi đến services -> bên trong services cần lấy thông tin của người dùng thì sẽ lấy từ SecurityContext này 
+ SecurityContextHolder.getContext().setAuthentication(authentication);
+ String jwt = this.createToken(authentication);
+
+Tham khảo: https://drive.google.com/file/d/1Goo_ejUCnyahSGpxTTp4S0yKt5oQdhhM/view
+
+##VII - loadUserByUsername##
+
+ở đây chỉ mới xác thực thông tin người dùng xem thông tin đăng nhập có hợp lệ ko chưa hề đụng tới token 
+
+
+
+Bước 1: Tạo DTO class 
+username: String
+password: String
+
+Bước 2: tạo AuthController 
+	disable formlogin mặc định của Security
+	disable cơ chế csrf -> nếu ko khi dùng endpoint dạng login method post sẽ lỗi 403 + với mô hình stateless cũng ko dùng token này 
+Tạo endpoint: /login
+
+//Nạp input gồm username/password vào Security
+ UsernamePasswordAuthenticationToken authenticationToken 
+= new UsernamePasswordAuthenticationToken(username, password)
+
+//xác thực người dùng => cần viết hàm loadUserByUsername
+Authentication authentication = authenticationManagerBuilder.getObject().authenticate(authenticationToken);
+	với authenticationManagerBuilder được tiêm vào và lệnh này nếu để pure như này sẽ bị lỗi -> cần hiểu cơ chế của Spring Security nó xác thực người dùng ntn mặc định nó sẽ lưu người dùng vào Memory chứ k biết mình lưu người dùng vào Database (Memory chỉ có 1 trên máy người dùng, SQL có nhiều loại -> cần nói cho nó biết lưu ntn ở đâu) -> cần viết lại hàm loadUserByUserName trong này 
+
+//nạp thông tin (nếu xử lý thành công) vào SecurityContext
+ SecurityContextHolder.getContext().setAuthentication(authentication);
+
+Bước 3: Viết Service UserDetail loadUserByUsername(String username) 
+
+tạo class UserDetailsCustom implements UserDetailsService trong interface UserDetailsService chỉ có 1 hàm loadUserByUsername(String username) với username chính là username gửi từ client lên dùng để query user sau khi lấy được user từ database -> hash password gửi từ client so sánh với password đã hash từ user vừa lấy lên từ database (quá trình so sánh này sẽ được spring tự động làm) nhiệm vụ cần làm:
+	tìm người dùng bên tron database -> truyền password hash từ người dùng này vào cho spring 
+
+- để cho Spring biết được mình đag viết class UserDetailsCustom ghi đè lại UserDetailsService: 
+	+ đối với mô hình MVC cần cấu hình lại config/SecurityConfiguration.java: ghi đè nạp nó nào 
+	+ Nhưng đối với ứng dụng này t sẽ làm level cao hơn = cách ghi đè = tên của @Bean cơ chế: mặc định nếu ko định nghĩa tên của Bean -> nó sẽ dùng tên của kiểu trả về của function bên dưới các @Bean -> convert tên đối tượng đó mặc định nó sẽ biến chữ tiên thành chữ thường đây là quy tắt đặt tên Bean của Spring sẽ lấy tên đối tượng đã được chuyển đối -> làm tên của Bean đó
+	-> thay vì việc cấu hình trực tiếp thì mình sẽ cấu hình gián tiếp thông qua tên của Bean 
+	-> ko cần cấu hình bên trong config/SecurityConfiguration.java mà chỉ cần thêm @component("userDetailServices") vào trc class UserDetailsCustom 
+
+//lưu ý: xử lý custom exception (nếu sai mật khẩu/email) 
+Tham khảo https://www.google.com/url?q=https://github.com/hoidanit-be-java-spring-rest/02-java-jhipster-with-filter/blame/master/src/main/java/com/mycompany/myapp/security/DomainUserDetailsService.java?ref_type%3Dheads%23L20&sa=D&source=docs&ust=1739851688233574&usg=AOvVaw3SBTxMcTlrA3I_OlLPKUot
+
+Về cách đặt Bean Name:
+https://stackoverflow.com/a/53758500
+
+nhiệm vụ cuối cùng là trả ra UserDetails theo đúng kiểu trả về của function loadUserByUsername(String username) -> giống Spring MVC sẽ dựa vào tính đa hình của Spring -> sẽ return về User của Spring Security vì class này có implements UserDetails
+        return new User(
+                user.getEmail(),
+                user.getPassword(),
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+
+
+
+
+
+	
+
+
+
+
+
+
+
 
 
 
