@@ -1088,6 +1088,197 @@ UserDetail
 
 - sẽ xử lý sau (thực tế có 1 số cách bắt all exception)
 
+- cơ chế hoạt động: khi gửi request điền thiếu thông tin -> chưa chạy vào bên trong controller mà nó bắt ở @Valid throw ra Exception MethodArgumentNotValidException -> chạy thẳng đến GlobalException.class ResponseEntity<RestResponse<Object>> validationError để xử lý khi đến return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res); -> sẽ chạy qa FormatRestResponse pần đã cấu hình để format ResponseEntity -> gửi Response ra client 
+
+##IX - Cơ chế tạo JWT Token
+
+1.Cài đặt thư viện
+Chúng ta đã cài đặt: implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server") Công cụ trên đã hỗ trợ đủ cơ chế encode/decode JWT (mà không cần cài đặt thêm gì hết)  trong thư viện này đã cung cấp sẵn package com.nimbusds:nimbus-jose-jwt giúp mã hóa và giải mã JWT 
+
+các package có sẵn trong thư viện đã cài: https://github.com/spring-projects/spring-security/blob/main/oauth2/oauth2-jose/spring-security-oauth2-jose.gradle
+
+api 'com.nimbusds:nimbus-jose-jwt'
+
+=> thư viện cần học cách sử dụng là: nimbus-jose-jwt
+https://connect2id.com/products/nimbus-jose-jwt
+
+2. Cách thuật ngữ hay dùng
+JOSE: JSON Object Signing and Encryption
+
+JWS: JSON Web Signatures  (quá trình validate data - client gửi data lên server, server cần validate)
+
+JWE: JSON Web Encryption (quá trình mã hóa data - trước khi gửi data về cho client, server cần mã hóa)
+
+JWK: JSON Web Key
+
+JWA: JSON Web Algorithms
+
+HMAC : Hash-based Message Authentication Code (sử dụng SHA, key secret và message để hash tạo ra output)
+
+Về JWT, tham khảo ebook https://drive.google.com/file/d/1EHvJAkEg_Yiym5OECArnAq-rQeIXPUFC/view
+
+3. Cơ chế tạo ra JWT
+JWT được cấu tạo từ 3 thành phần: header.payload.signature
+
+header (thông tin về thuật toán có 2 loại hay dùng: hash message, public & private key như RSA) => encode dưới dạng base64
+
+payload (thông tin data chứa trong token) => encode dưới dạng base64
+
+Signature (chữ ký) => được tạo nên từ thuật toán mã hóa + (header + payload) + key (mật khẩu) dưới dạng base64
+
+Như vậy, signature gồm 3 thành phần: thuật toán mã hóa , data của (header + payload) và key (có thể là mật khẩu/ hoặc sử dụng private/public key)
+
+Ví dụ mô hình: 
+header{"alg":"HS256"} -> Base64 Encode -> "chuỗi header"
+payload{"sub":"user-id-287873"} -> Base64 Encode -> "chuỗi payload"
+
+data cần mã hóa = "chuỗi header"."chuỗi payload"
+
+để xác thực token:
+	key + thuật toán được quy định ở header + data cần mã hóa 
+	-> 3 yếu tố này sẽ sinh ra chữ kí 
+	tiếp tục chữ kí này sẽ được mã hóa lần nữa = Base64 -> "chuỗi chữ kí"
+
+-> JWToken = "chuỗi header"."chuỗi payload"."chuỗi chữ kí"
+
+
+Header ghi thông tin thuật toán HS256 sẽ được mã hóa = Base64 (một cơ chế chuyển đổi ngôn ngữ giúp máy có thể hiểu)
+payload chứa thông tin data muốn lưu vào token sẽ được mã hóa = Base64 
+-> nối 2 chuỗi lại để tạo token 
+cuối cùng để xác thực token đó có hợp lệ hay ko (do server sinh ra hay do bên khác tạo fake) có 2 cách làm:
+	- chia sẽ mật khẩu (Shared secret)
+	- public & private key 
+	(tạm thời chung quy 2 cái này là key) 
+
+có 2 cách phổ biến
+a shared secret (hs256) (cách dùng trong khóa học này)
+
+a private/public key pair (rs256)
+
+##X - Tạo Key (Part 1)#
+
+Signature (chữ ký) => được tạo nên từ thuật toán mã hóa + (header + payload) + key (mật khẩu) dưới dạng base64
+
+1. JWK (Json Web Key)
+Key được tạo ra với một mục đích, cho dù JWT bị lộ ra, nếu không có “key”, bạn không thể giải mã được token
+Có 2 hình thức tạo key phổ biến: một là dùng mật khẩu (hash) và hai là dùng public/private key
+
+Với mô hình public/private key pair: (thuật toán RSA)
+Ví dụ bạn dùng JWT để giao tiếp giữa Server A (chủ)  và Server B (khách)
+	Server A sẽ giữ private key
+	Server B chỉ được phép giữ public key. Và dùng public key này để giải mã (decrypt) token được A cung cấp. Với public key, B không thể “tự tạo được token”
+-> dùng cho mô hình lớn dễ mở rộng
+
+Với mô hình dùng mật khẩu (hash):
+Ví dụ bạn dùng JWT để giao tiếp giữa Server A (chủ)  và Server B (khách)
+	Server A sẽ giữ mật khẩu (key) 
+	Server B cũng cần biết mật khẩu trên (shared key) . Và  key này để giải mã (decrypt) token được A cung cấp. B có thể “tự tạo được token”
+-> dùng cho mô hình nhỏ khó mở rộng
+
+
+2. Tạo Key
+
+Bước 1: cấu hình .env variable (biến môi trường)
+(sử dụng yaml)
+security:
+    authentication:
+      jwt:
+        # This token must be encoded using Base64 and be at least 256 bits long 
+(you can type `openssl rand -base64 64` on your command line to generate a 512 bits one)
+        base64-secret: ODcxODJlOGI4YTdhZWNlYzE4NmRhNzQwYzQ4ZmIxOTQzODMzZDcxOWQ2OGVlNTk5MjY0MTcxNTc3YTcyZmIzN2I0YmI4NmI1ZDU2NDU4YzUxZjI0MDMwM2E5MDI4YWU5YTIyMWQ5ZDNhODBhMmNhZjFkM2VlZWRhN2Y4ZWVlOTk=
+
+(sử dụng .properties)
+//update file application.properties
+Lưu ý: ae copy paste thì cần để giá trị trên cùng 1 dòng (làm giống hệt như video), còn trong tài liệu là nó tự động xuống dòng. File application.properties tính cả dấu cách, dấu enter xuống dòng đấy
+
+hoidanit.jwt.base64-secret=qoAEABDke07+AVLepXB4aCMtsT0wMAqR5x2VFyldsnx6e75YQkJH2UcZKTjEyoNgG71SBCXfq5N6NVZxWOfsHQ==
+hoidanit.jwt.token-validity-in-seconds=86400//thời hạn hết hạn của key 
+
+2 phần config này do ta tự định nghĩa (từ tên biến + giá trị) -> Spring sẽ ko hiểu cần cấu hình thêm 1 thư viện nó mới biết được (cũng ko cần thiết lắm) đơn giản chỉ khai báo 1 thuộc tính trong này và lấy ra dùng 
+
+việc tạo key/giá trị của biến này hoidanit.jwt.base64-secret có thể là 1 chuỗi String bất kì, nếu muốn tăg tíh bảo mật -> dùng câu lệnh openssl rand -base64 64 (nếu dùng trog cmd của Mac/Linux thì mặc định dùng được, Windows pải cài thêm openssl) có thể dùng trong Git Bash (câu lệnh giúp random key dưới định dạng Base64
+
+key mới tự sinh ra: tKqQcDw3NbLdtNRCbFRvwBQgb9RW/zlDuSkSHV5pHNozCIUZtt1fHHSEqaj16hvAXQbxN0krfrXv1VE6hTPyhw==
+
+Bước 2: Sử dụng .env 
+theo mô hình Dependency Injection với annotation 
+@Value("${hoidanit.jwt.base64-secret}")
+private String jwtKey;
+https://stackoverflow.com/a/30528430
+
+Bước 3: Tạo key
+tạo thêm 1 service util/SecurityUtil.java:
+	class này sẽ giúp tạo Token: gửi authentication (payload) qa đây để tạo token trong đó ko hề có mật khẩu (mặc định Spring Security ko lưu mật khẩu trong này)
+
+
+sau khi lấy xog biến môi trường: 
+	+ thuật toán: kéo từ package bên dưới về 
+	+ package com.nimbusds:nimbus-jose-jwt
+
+Viết cấu hình lại config/SecurityConfiguration.java :
+
+	chúng ta dùng cách shared SecretKey chứ ko dùng Public&Private key -> cần lấy ra Secret key = cách giải mã key đã cấu hình trong .properties và giải mã dưới dạng byte -> sau khi có key cần tạo ra đối tượng SecretKey để return về 
+	Base64 pải import từ Jose
+	SecretKey này chính là cái để giúp cho việc khai báo và mã hóa/encoder Token -> thêm phần @Bean cấu hình lại giống như phần passwordEncoder 
+
+
+//update file security config:
+
+ public static final MacAlgorithm JWT_ALGORITHM = MacAlgorithm.HS512;
+
+  private SecretKey getSecretKey() {
+        byte[] keyBytes = Base64.from(jwtKey).decode();
+        return new SecretKeySpec(keyBytes, 0, keyBytes.length, JWT_ALGORITHM.getName());
+  }
+
+ 
+@Bean
+public JwtEncoder jwtEncoder() {
+        return new NimbusJwtEncoder(new ImmutableSecret<>(getSecretKey()));
+}
+
+Tham khảo https://drive.google.com/file/d/1Goo_ejUCnyahSGpxTTp4S0yKt5oQdhhM/view
+
+
+Bước 4: Tạo Access Token (JWT)
+
+    public String createToken(Authentication authentication) {
+
+        Instant now = Instant.now();//instant là 1 package hỗ trợ làm việc với thời gian 
+        Instant validity = now.plus(this.tokenValidityInSeconds, ChronoUnit.SECONDS);
+    
+
+        // @formatter:off này là Payload
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+            .issuedAt(now)
+            .expiresAt(validity)
+            .subject(authentication.getName())
+            .claim(AUTHORITIES_KEY, authorities) //claim yêu cầu tham số là String, Object
+            .build();
+
+        JwsHeader jwsHeader = JwsHeader.with(JWT_ALGORITHM).build(); // header
+        return this.jwtEncoder.encode(JwtEncoderParameters.from(jwsHeader, claims)).getTokenValue();//return String và đã làm theo cấu hình encode của mình cấu hình ở config/SecurityConfiguration.java
+    }
+
+các bước cơ bản: lấy được phần authentication -> tạo token (header thuật toán + authentication + SecretKey) -> ném về cho người dùng
+
+sau đó quay lại AuthController.java chỉnh sửa ResponseEntity -> để ko gửi ra thông tin người dùng mà gửi về token cho người dùng 
+
+Fix lỗi: khi @PostMapping("/login")
+    public ResponseEntity<String> login -> trả về .body(chuỗi) mà bên phần format response RestResponse<Object> restResponse = new RestResponse<Object>(); đang yêu cầu 1 object maybe nó sẽ bị lỗi -> tạo thêm 1 RestLoginDTO.java làm Object lưu chuỗi token và chỉnh sửa lại:
+	public ResponseEntity<RestLoginDTO> login -> return .body(RestLoginDTO)
+
+cách fix cũ:
+if (body instanceof String) {
+            return body;
+        }
+-> nhưng như này khi return thì nó chỉ return về chuỗi token mà ko theo định dạng gì -> ko hợp lý 
+
+Sau khi đã có token ở client để giải mã được token đó -> vào jwt.io paste cái token đó vào để giải mã ở đây vẫn xem được data khi mã hóa vì phần header, payload ko hề được mã hóa cái mã hóa là phần signature (đây chính là cái để pía server xác nhận 1 token là hợp lệ)
+
+Bây h đã có token -> h mọi request gửi lên server đều pải gắn với token này và pải hợp lệ -> request mới được accept 
+
+
 
 
 	

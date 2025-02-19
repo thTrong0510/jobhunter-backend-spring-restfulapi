@@ -31,12 +31,14 @@ public class FormatRestResponse implements ResponseBodyAdvice<Object> {
         HttpServletResponse servletResponse = ((ServletServerHttpResponse) response).getServletResponse();
         int status = servletResponse.getStatus();
 
-        RestResponse<Object> restResponse = new RestResponse<Object>();
+        RestResponse<Object> restResponse = new RestResponse<Object>();// trông chờ body trả về kiểu Object -> nếu trả
+                                                                       // về 1 chuỗi string maybe bị lỗi
         restResponse.setStatusCode(status);
 
-        if (body instanceof String) {
-            return body;
-        }
+        // cách fix bugs cũ -> chuyển sang dùng RestLoginDTO để fix rồirồi
+        // if (body instanceof String) {
+        // return body;
+        // }
 
         if (status >= 400) {
             // case error

@@ -10,18 +10,23 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import jakarta.validation.Valid;
 import vn.hoidanit.jobhunter.domain.dto.LoginDTO;
+import vn.hoidanit.jobhunter.domain.dto.RestLoginDTO;
+import vn.hoidanit.jobhunter.util.SecurityUtil;
 
 @Controller
 public class AuthController {
 
+    private final SecurityUtil securityUtil;
+
     private final AuthenticationManagerBuilder authenticationManagerBuilder;
 
-    public AuthController(AuthenticationManagerBuilder authenticationManagerBuilder) {
+    public AuthController(AuthenticationManagerBuilder authenticationManagerBuilder, SecurityUtil securityUtil) {
         this.authenticationManagerBuilder = authenticationManagerBuilder;
+        this.securityUtil = securityUtil;
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginDTO> login(@Valid @RequestBody LoginDTO loginDTO) {
+    public ResponseEntity<RestLoginDTO> login(@Valid @RequestBody LoginDTO loginDTO) {
 
         // Nạp input gồm username/password vào Security
         UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
@@ -30,6 +35,10 @@ public class AuthController {
         // xác thực người dùng => cần viết hàm loadUserByUsername
         Authentication authentication = authenticationManagerBuilder.getObject().authenticate(authenticationToken);
 
-        return ResponseEntity.ok().body(loginDTO);
+        // create JWT
+        RestLoginDTO restLoginDTO = new RestLoginDTO();
+        restLoginDTO.setAccessToken(this.securityUtil.createToken(authentication));
+
+        return ResponseEntity.ok().body(restLoginDTO);
     }
 }
