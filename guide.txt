@@ -1361,6 +1361,145 @@ có 1 function resolve bấm vào interface tìm những đứa override nó: De
 
 sau khi lấy được token -> nó sẽ gửi về lại Decoder theo thuật toán + key đã được chúng ta override mà giải mã ra
 	
+##XII - Xử lý JWT Exception##
+1.Xử lý exception
+
+xử lý 2 ngoại lệ:
+- nhập sai email, mật khẩu (lúc trước khi chưa cấu hình JWT -> chạy nó sẽ ko bắt được exception vì nó bị lỗi ở Filter chưa chạy vào controller)
+    @ExceptionHandler(value = {
+            UsernameNotFoundException.class,
+            BadCredentialsException.class
+    })
+    public ResponseEntity<RestResponse<Object>> handleIdException(Exception ex)
+
+bỏ đi pần IdInvalidException pần này sẽ làm riêng trog tham số của hàm cũng chuyển IdInvalidException thành Exception vì những lỗi khác như UsernameNotFoundException, BadCredentialsException nó sẽ ép kiểu về kiểu cha là Exception -> ko lỗi chứ nếu vẫn để nguyên IdInvalidException ép về cùng cấp maybe -> lỗi 
+
+- sai token (Exception JWT): 
+ cơ chế mặc định những cái công cụ hỗ trợ (thêm pần này trc khi cấu hình lại)
+//default exception
+  .exceptionHandling(
+          exceptions -> exceptions
+                  .authenticationEntryPoint(new BearerTokenAuthenticationEntryPoint()) //401 chưa đn
+                   .accessDeniedHandler(new BearerTokenAccessDeniedHandler())) //403 yêu cầu quyền 
+đây là nó sẽ set lỗi www-authentication ở header (chỉ để theo 1 chuẩn nào đó) việc cấu hình thêm 2 cái này chug quy là khi gặp exception nó sẽ xử lý lỗi theo 1 chuẩn RFC 6750 đó chứ ko có sự khác biệt rõ giữa việc thêm hay ko 
+//custom
+https://devlach.com/blog/java/spring-security-custom-authentication-failure
+
+//class CustomAuthenticationEntryPoint.java (download trong source code đính kèm)
+
+//hỗ trợ tiếng việt
+ response.setContentType("application/json;charset=UTF-8");
+
+//không làm như này nhé:
+server.servlet.encoding.charset=UTF-8
+server.servlet.encoding.force=true
+
+cấu hình lại hàm này authenticationEntryPoint(cấu hình function truyền vào chỗ này BearerTokenAuthenticationEntryPoint()) là hàm ở pần cơ chế mặc định: bấm vào thì thấy nó implements 1 interface AuthenticationEntryPoint và cần override lại hàm commence() hàm này giúp can thiệp vào pần request và response để custom lại response mặc định của Spring là chỉ đưa ra lỗi ở www-authentication ở header mà ko có theo format của mìh ở body
+Tạo thêm class Config: CustomAuthenticationEntryPoint
+@Component // biến nó thành Bean -> tối ưu 
+public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint {
+
+    private final AuthenticationEntryPoint delegate = new BearerTokenAuthenticationEntryPoint();
+
+    private final ObjectMapper mapper;//giúp chuyển data -> dạng object để gửi về dưới dạng json 
+
+    public CustomAuthenticationEntryPoint(ObjectMapper mapper) {
+        this.mapper = mapper;
+    }
+
+    @Override
+    public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException, ServletException {
+        this.delegate.commence(request, response, authException);//đây là pần mặc định www-authentication ở header
+
+        //customize
+        response.setContentType("application/json;charset=UTF-8");
+        RestResponse<Object> res = new RestResponse<Object>();
+        res.setStatusCode(HttpStatus.UNAUTHORIZED.value());
+        res.setError(authException.getCause().getMessage());
+        res.setMessage("Invalided token (ko đúng định dạng, hết hạn, ...)");
+
+        mapper.writeValue(response.getWriter(), res);//truyền lại thông tin cho client 
+    }
+}
+
+hầu như là để mặc định chỉ custom sơ thêm pần dữ liệu để gửi về client 
+
+cuối cùng là thêm pần này vào config/SecurityConfiguration.java 
+	thêm .authenticationEntryPoint(null)) vào oauth2ResourceServer (vẫn giữ nguyên pần mặc định đã cấu hình trc đó: lúc này đã override lại đc 401 mặc định, 403 sẽ xử lý sau)
+
+	null pải gáng = class đã cấu hình có 2 cách: 
+		1 làm 1 Bean trong file rồi add vào như thường 
+		2 cái class đó dùng @component -> khi chạy nó sẽ tạo những cái Bean như này riêng rẻ đã tích hợp sẵn thông qa Dependency Injection của Spring -> chỉ cần khai báo nó làm tham số trong hàm nhờ dùng @component -> Spring sẽ tự nhận biết đc do đang dùng class chứ ko pải tạo Bean(function) -> chỉ cần truyền tên vào 
+
+-> đã custom được lỗi gửi ra client khi gửi sai token 
+-> khi request ko gửi token chưa custom được 
+
+cuối cùng là lưu dữ liệu vào Security Context 	
+
+2. Lưu data vào Security Context (req.user)
+nạp data vào đây để khi đăng nhập xog -> khi gửi những request khác vào controller, service cần data người dùng -> thì vào đây để lấy
+//khi login luồng login tạo ra token
+        Authentication authentication = authenticationManagerBuilder.getObject().authenticate(authenticationToken);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+bây h khi set ở đây thì là thừa sau này mới dùng tới 
+
+luồng khi gửi token lên server 
+//khi decode thành công vẫn nạp thông tin vào SecurityContext (convert từ JWT -> sang data và lưu)
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
+        grantedAuthoritiesConverter.setAuthorityPrefix("");
+        grantedAuthoritiesConverter.setAuthoritiesClaimName(AUTHORITIES_KEY);
+
+        JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
+        jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(grantedAuthoritiesConverter);
+        return jwtAuthenticationConverter;
+    }
+//ngoài việc nạp thông tin bth sau này khi gửi thông tin lên + quyền .... bây h chưa đụng vào phần này
+
+##XII - Tổng kết về JWT##
+
+1. Quá trình tạo ra/mã hóa Token (encode)
+
+- Khi nào tạo ra token: người dùng login thành công, server cần trả ra token gửi cho client.
+- Tất cả các request sau này gửi lên server truy cập API, client cần truyền lên token này để định danh (xác thực)
+
+Quá trình encode gồm các bước:
+	JWT = header.payload.signature
+	Phần header bao gồm thông tin về thuật toán mã hóa => khai báo thuật toán
+	Phần payload là data truyền theo token (được dùng để định danh người dùng)
+	Phần signature là chữ ký, được tạo ra bằng cách : JWK (key) + thuật toán +  ký vào (header + payload) 
+
+=> với Java Spring, cần cấu hình  JwtEncoder(tạo encoder trong này cần key và thuật toán), khai báo Key + thuật toán (thông qa function getSecretKey() lấy key và thuật toán thông qa biến môi trường)
+   @Bean
+    public JwtEncoder jwtEncoder() { return new NimbusJwtEncoder(new ImmutableSecret<>(getSecretKey())); } việc return như này là 1 cách code tắt bấm vào NimbusJwtEncoder -> thì hàm tạo của nó JWKSource<SecurityContext> cần truyền vào JWKSource còn mình truyền vào ImmutableSecret (ImmutableSecret kế thừa lại ImmutableJWKSet mà ImmutableJWKSet kế thừa JWKSource) -> quan hệ kế thừa 
+
+//todo: giải thích code
+
+2. Quá trình giải mã Token (decode)
+
+- Client muốn truy cập & sử dụng API, cần truyền lên Token (đã có từ bước login) tại header của Request, thông thường là dạng Bearer you-token-here
+Bước 1: client gửi kèm JWT token ở header request
+Bước 2: Tại phía Server của Spring (sau khi đã cấu hình oauth2-resource-server), sẽ kích hoạt filter BearerTokenAuthenticationFilter
+
+- Filter này sẽ “tự động tách” Bear Token (bạn không cần phải làm thủ công, thư viện đã làm sẵn rồi)
+
+Token sẽ được xử lý tiếp, thông qua:
+JwtDecoder : giải mã token (check tính hợp lệ của token)
+Check như thế nào :  
+JWT = header.payload.signature
+
+Decoder sẽ tách header, payload, đồng thời lấy Key + thuật toán để băm ngược ra signature
+
+Nếu 2 signature là trùng nhau => token hợp lệ. 
+
+Quá trình này tương tự việc so sánh mật khẩu khi login (băm mật khẩu thành hash để so sánh với database, nếu trùng nhau, tức là nhập đúng thông tin)
+
+
+
+JwtAuthenticationConverter  : convert data chứa trong token, lưu  vào Spring Security Context để reuse
+
+
 
 
 
