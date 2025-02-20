@@ -1278,6 +1278,90 @@ Sau khi đã có token ở client để giải mã được token đó -> vào j
 
 Bây h đã có token -> h mọi request gửi lên server đều pải gắn với token này và pải hợp lệ -> request mới được accept 
 
+##XI - Bảo Vệ Endpoint (API) với JWT##
+Tài liệu:
+https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html#oauth2resourceserver-jwt-sansboot
+
+để cấu hình phần JWT ko nên tự viết 1 Filter (độ an toàn ko cao) mà nên dùng cái mặc định của Spring Security cấu hình thêm pần config/SecurityCofiguration.java: .oauth2ResourceServer((oauth2) -> oauth2.jwt(Customizer.withDefaults())); khi cấu hình phần này vào http -> spring sẽ cung cấp 1 Filter BearerTokenAuthenticationFilter filter này giúp tự động tách phần token nếu gửi request đính kèm token vào pần header (nếu ko dùng Filter này -> cần pải tự viết thủ côg cách lấy token,...)
+
+
+Bước 1: khai báo sử dụng JWT
+@Bean
+public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    http
+        .authorizeHttpRequests(authorize -> authorize
+            .anyRequest().authenticated()
+        )
+        .oauth2ResourceServer((oauth2) -> oauth2.jwt(Customizer.withDefaults()));
+	//customizer.withDefaults() như này chả có ý nghĩa gì cả chỉ có ý nghĩa về mặc ngữ páp là dùng cấu hình mặc định của function gọi nó vì nếu bấm vào function withDefaults() -> nó return về {} list rỗng :vv
+    return http.build();
+}
+
+Mục đích của bước 1, là sử dụng BearerTokenAuthenticationFilter (filter sẽ tự động extract - lấy token từ header của request gửi lên server )
+
+Sau khi khai báo như trên, nếu chạy project sẽ bị “toang”, vì khi cấu hình sử dụng JWT, ngoài cấu hình encoder (mã hóa token), chúng ta cần decoder (giải mã cái token đó ở pía backend) đọc phần log sẽ thấy nó yêu cầu 1 Bean nữa để decode required a bean of type 'org.springframework.security.oauth2.jwt.JwtDecoder' -> cần viết 1 Function hướng dẫn BearerTokenAuthenticationFilter làm sao để giải mã được token gửi lên (quy định tên thuật toán + chìa khóa) 
+
+Bước 2: cấu hình decoder
+https://docs.spring.io/spring-security/site/docs/current/api/org/springframework/security/config/annotation/web/configurers/oauth2/server/resource/OAuth2ResourceServerConfigurer.html
+ 
+Có 3 cách:
+supply a Jwk Set Uri via OAuth2ResourceServerConfigurer.JwtConfigurer.jwkSetUri cung cấp chìa khóa đẽ có thể giải mã được (có thể cung cấp qa 1 đường link url (như 1 link lưu trữ private/public key truy cập đến link để lấy)) chứ ko làm theo cách local là khai báo biến môi trường env trong properties như chúng ta 
+or
+supply a JwtDecoder instance via OAuth2ResourceServerConfigurer.JwtConfigurer.decoder cung cấp 1 đối tượng
+
+Or expose a JwtDecoder bean đây là cách ứng dụng này làm: ghi đè lại 1 cái Bean - cấu hình thông qa Bean 
+
+
+//@FunctionalInterface    
+@Bean
+    public JwtDecoder jwtDecoder() {
+        NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withSecretKey(
+                getSecretKey()).macAlgorithm(SecurityUtil.JWT_ALGORITHM).build();
+        return token -> {
+            try {
+                return jwtDecoder.decode(token);
+            } catch (Exception e) {
+                System.out.println(">>> JWT error: " + e.getMessage());
+                throw e;
+            }
+        };
+    }
+
+sau khi khai báo xog Bean này mọi request gửi tới Server mà ko có gửi kèm token xác thực -> lỗi 401 unauthorized những Filter sẽ chạy trước khi vào HttpRequest cũng như là controller 
+
+cú páp lamda được viết pần return chính là cú páp dành cho Funtionalinterface là interface chỉ chứa 1 function dùng để override lại function đó được dùng chính là cách chúng t viết ở function public JwtDecoder jwtDecoder() nếu bấm vào JwtDecoder thì đây cũng là 1 functionalInterface có đúng 1 method là decode -> khi override lại interface JwtDecoder dùng lamda -> ghi đè lại function decode và function này có tham số sẵn là token nên có thể dùng token ở pần return 
+token được lấy ở Filter BearerTokenAuthenticationFilter (giải thích qá trình lấy ra token pía dưới)
+
+
+Bước 3: test API: để xem việc nó tách token ntn 
+Lưu ý: cần allow /login permitAll
+- cần khi gửi request -> thông báo lỗi chứ ko pải chỉ hiển thị 401 ở Postman
+
+Cần login để lấy access_token -> copy pần token 
+
+Mỗi khi gọi API, chuyển qa tab Authorization chọn Bear token + cần truyền lên token này (sau này ở Front end sẽ tự biết làm pần này)
+
+nếu gửi sai token -> nó sẽ set 1 header www-authenticate (theo chuẩn của Spring) để mô tả lỗi 
+
+ngoài cái thông báo lỗi mặc định này mình sẽ làm thêm bắt Exception và gửi nó về pần body hiển thị theo format Response 
+
+***Cách Filter BearerTokenAuthenticationFilter hoạt động (tách token + override lại decode ntn 
+Ctrl + T: tìm theo Filter BearerTokenAuthenticationFilter trong này nó sẽ chạy vào Function doFilterInternal trog này nó sẽ:
+
+- lấy ra token ở token = this.bearerTokenResolver.resolve(request); lợi khi dùng sẵn khỏi cần tự viết cách lấy token khi bấm vào resolve -> functional interface nghĩa là 1 interface chỉ có đúng 1 method -> có thể dùng cú páp lamda với kiểu này
+	@FunctionalInterface
+	public interface BearerTokenResolver
+
+cú páp lamda chính là cách chúng t viết ở function public JwtDecoder jwtDecoder() nếu bấm vào JwtDecoder thì đây cũng là 1 functionalInterface có đúng 1 method là decode -> khi override lại interface JwtDecoder dùng lamda -> ghi đè lại function decode và function này có tham số sẵn là token nên có thể dùng token ở pần return token này lấy ở BearerTokenAuthenticationFilter
+nhấn vào resolve(request) chỗ lấy ra token ở Filter -> Functional Interface
+	@FunctionalInterface
+	public interface BearerTokenResolver
+có 1 function resolve bấm vào interface tìm những đứa override nó: DefaultBearerTokenResolver.class tìm đến hàm resolve nhấn tiếp vào resolveFromAuthorizationHeader(request) -> hàm resolveFromAuthorizationHeader(HttpServletRequest request) trong này nó sẽ lấy header request.getHeader(this.bearerTokenHeaderName) -> tiếp theo nó filter header 1 pattern để lấy ra token bấm vào authorizationPattern authorizationPattern.matcher(authorization) -> đây chính là pattern private static final Pattern authorizationPattern = Pattern.compile("^Bearer (?<token>[a-zA-Z0-9-._~+/]+=*)$",
+			Pattern.CASE_INSENSITIVE); // bỏ đi pần "Bearer "chỉ lấy pần token pía sau 
+
+sau khi lấy được token -> nó sẽ gửi về lại Decoder theo thuật toán + key đã được chúng ta override mà giải mã ra
+	
+
 
 
 
