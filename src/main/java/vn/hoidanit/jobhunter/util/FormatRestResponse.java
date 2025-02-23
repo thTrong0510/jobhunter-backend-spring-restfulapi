@@ -36,9 +36,9 @@ public class FormatRestResponse implements ResponseBodyAdvice<Object> {
         restResponse.setStatusCode(status);
 
         // cách fix bugs cũ -> chuyển sang dùng RestLoginDTO để fix rồirồi
-        // if (body instanceof String) {
-        // return body;
-        // }
+        if (body instanceof String) {
+            return body;
+        }
 
         if (status >= 400) {
             // case error

@@ -1496,8 +1496,248 @@ Nếu 2 signature là trùng nhau => token hợp lệ.
 Quá trình này tương tự việc so sánh mật khẩu khi login (băm mật khẩu thành hash để so sánh với database, nếu trùng nhau, tức là nhập đúng thông tin)
 
 
+JwtAuthenticationConverter  : convert data chứa trong token, lưu  vào Spring Security Context 
 
-JwtAuthenticationConverter  : convert data chứa trong token, lưu  vào Spring Security Context để reuse
+Fix: khi gửi request đến server nhưng ko gửi lên token -> chưa custom response đó được 
+	comment cấu hình mặc định này lại: 
+	// .exceptionHandling(
+                //         exceptions -> exceptions
+                //                 .authenticationEntryPoint(customAuthenticationEntryPoint) // 401 chưa đn
+                //                 .accessDeniedHandler(new BearerTokenAccessDeniedHandler())) // 403 yêu cầu quyền
+	Lỗi là vì ở class CustomAuthenticationEntryPoint.java cần sửa lại trong function commence()
+String errorMessage = Optional.ofNullable(authException.getCause()).map(Throwable::getMessage)
+                .orElse(authException.getMessage()); để kiểm tra nếu ko gửi lên token authException.getCause() = null -> lỗi câu lệnh này check nếu nó null thì trả ra authException.getMessage() ko thì tra ra authException.getCause().getMessage()
+
+
+====Chapter 8: Phân tích dự án thực hành====
+
+Phân tích và thiết kế dự án thực hành của khóa học
+
+##I - 60. Giới thiệu dự án thực hành## 
+
+1.Về dự án thực hành
+
+Ý tưởng dự án, tham khảo nhanh tại đây
+
+Đề tài : website việc làm (ý tưởng itviec.com)
+
+Các đối tượng tham gia:
+	Users (có phân quyền chi tiết): HR, Admin, normal user
+	Permission/Role
+	Company (công ty đăng tin tuyển dụng)
+	Job/Resume
+	Subscriber (đăng ký nhận tin tuyển dụng qua email)
+
+##II - Setup dự án thực hành Frontend##
+
+1. Cài đặt Node.js
+Nodejs là môi trường chạy code javascript, tương tự JDK để chạy code Java
+
+Version node.js mình sử dụng là 16.20.0:
+https://nodejs.org/download/release/v16.20.0/
+
+Cài chính xác version để hạn chế tối đa lỗi có thể xảy ra. (nvm)
+
+Kiểm tra đã cài đặt thành công với câu lệnh: node -v
+
+2. Cài đặt dự án Frontend
+
+Bước 1: download dự án Frontend https://drive.google.com/file/d/1FuUnBoDYMjwSMpZWeXE7mry6rXwJY5rw/view
+(đã ứng với branch cors)
+
+Bước 2: cài đặt các thư viện cần thiết với câu lệnh
+npm i
+
+Bước 3: update file .env.development  và .env.production 
+//update url backend
+
+Bước 4: chạy dự án
+//chạy tại dev
+//chạy tại production
+
+##III - CORS##
+
+1. Minh họa lỗi
+Mở source code frontend
+	Bước 1: cài đặt thư viện cần thiết npm i
+	Bước 2: chạy dự án ở chế độ dev
+	//lưu ý: backend chạy tại localhost:8080
+
+	npm run dev
+
+Chờ 1 xíu để browser lưu cache, truy cập: http://localhost:3000/
+
+F12, check tab network
+(failed)net::ERR_CONNECTION_REFUSED => chưa chạy backend
+
+chạy Backend lên sẽ ko còn thấy lỗi (failed)net::ERR_CONNECTION_REFUSED mà thấy lỗi CORS Nếu không thấy lỗi CORS error cũng chẳng sao (máy này ko thấy và hiện lỗi 401)
+
+2. CORS là gì 
+https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+Cross-Origin Resource Sharing (CORS) là câu chuyện Server cho phép tên miền nào có quyền load tài nguyên của nó lỗi này CHỈ xảy ra khi dùng trình duyệt Browser
+
+đây là 1 cơ chế định nghĩa pần Header: ở tab network-fetch/XHR (nơi chỉ xét những lời gọi API) bấm vào localhost-header trong này có 1 trường trong Header là Referrer Policy cái này sẽ quy định mỗi một lần gọi API từ Frontend -> mặc định chỉ được pép dùg 1 tên miền nếu khác -> sẽ bị lỗi CORS
+
+Server: localhost:8080
+Client: localhost:3000 => khác nhau ở port nên bị chặn CORS
+
+Như khóa Spring MVC, dùng SSR, cả server và client đều là localhost:8080 nên không bị
+
+
+
+Tại sao lại cần CORS ?
+Tất cả lý do cơ chế cookies của browser. Cookies lưu thông tin người dùng (dùng định danh người dùng, tương tự session_id)
+
+Với code frontend, nếu gọi API từ client tới server, browser sẽ tự động đính kèm cookies ứng với server đấy.
+
+Thử tưởng tượng case sau:
+
+Bạn dùng browser, bạn sử dụng facebook.com
+=> browser sẽ lưu cookies của bạn ứng với server facebook.com 
+(mục đích mỗi lần bạn refresher, hoặc vài tuần sau bạn quay lại facebook mà không cần đăng nhập/định danh bạn là ai)
+
+Bạn chat với 1 người lạ trên facebook, gửi cho bạn 1 đường link hot-girl.xyz
+Bạn nhấn vào link, và truy cập hot-girl.xyz
+
+Nếu không có cơ chế CORS, và trang web hot-girl.xyz là do hacker dựng lên, nó sẽ code như sau:
+Từ hot-girl.xyz gọi API của facebook.com, ví dụ: facebook.com/getPhoneNumber
+=> lấy thông tin số điện thoại sau lưng bạn :v 
+
+API trên sẽ gọi được (mà không cần đăng nhập vào facebook), vì mặc định, browser sẽ gửi kèm cookies của facebook.com (khi bạn gọi tới server đấy)
+
+=> để tránh tình trạng trên, mặc định, các browser hiện đại sẽ có cơ chế CORS (default).
+
+Có nghĩa là, dùng browser, không thể từ hot-girl.xyz gọi tới facebook.com (vì khác tên miền)
+Tương tự với case của chúng ta: từ localhost:3000 không thể gọi tới localhost:8000
+
+##IV - Cách fix CORS##
+Cơ chế CORS sinh ra để giúp lướt web an toàn hơn, và cung cấp thêm sức mạnh cho server, khi có thể quyết định “tên miền nào” có thể truy cập nguồn tài nguyên của nó
+
+=> muốn fix CORS, nên fix ở Server (cách thực tế sử dụng)
+
+Mô hình áp dụng: client - server thông qua Restful API, đang bị CORS, có các cách fix sau:
+
+Cách hiệu quả nhất (được dùng trong khóa học), là cấu hình CORS tại backend, như vậy frontend chỉ dùng và không cần phải sửa đổi gì
+
+Tuy nhiên, khi đi làm trong thực tế, nếu server (API) không do bạn viết, hoặc đối tác cung cấp không thể sửa đổi thì làm thế nào ?
+
+Cách 1: disabled security của browser 
+https://stackoverflow.com/questions/3102819/disable-same-origin-policy-in-chrome
+=> không khuyến khích dùng cách này
+
+Cách 2: không sử dụng browser trực tiếp, mà dùng server - server 
+(khuyến khích dùng cách này, vì control 100%)
+
+CORS chỉ xảy ra giữa browser và server. Còn server gọi server sẽ không có CORS
+
+Nếu client => gọi Server A bị CORS (server này bạn ko kiểm soát), thì:
+
+Client => gọi Server B (server này bạn kiểm soát, sẽ setup CORS) => gọi Server A
+
+Cách 3: dùng proxy cho code frontend (again, bạn cần tìm hiểu công cụ sử dụng có dùng proxy hay không)
+
+Client => gọi proxy => gọi server A (thứ bạn không kiểm soát). Như vậy, nó sẽ gần giống như cách 2 ở trên. proxy khi gọi API đến Server -> sẽ giúp dấu đi URL đến Backend mà dùng URL đã được cấu hình 
+Bạn nào dùng nginx (reverse proxy sẽ hiểu :v )
+
+##V -  Spring và CORS##
+Tài liệu:
+https://docs.spring.io/spring-security/reference/servlet/integrations/cors.html
+
+***muốn fix nhanh cho từng API dùng Annotation: @CrossOrigin
+
+Phạm vi cấu hình CORS: local hoặc global
+https://docs.spring.io/spring-framework/reference/web/webmvc-cors.html#mvc-cors-intro
+
+Tham khảo Jhipster:
+	Cấu hình env
+	Cấu hình filter
+
+1.Cấu hình CORS
+Mặc định, spring security hỗ trợ sẵn org.springframework.web.filter.CorsFilter đây là 1 Filter có sẵn mặc định của Spring Security để cấu Hình pần CORS 
+
+-> cấu hình lại nó 
+
+khai báo nó ra pần HttpRequest
+	                .cors(Customizer.withDefaults()) // đây là cỉ khai báo gọi nó ra và dùng cấu hình mặc định 
+
+
+Tạo bean: khi tạo Bean như này: @Bean + @Configuration -> Spring sẽ tự ghi đè cấu hình mặc định của org.springframework.web.filter.CorsFilter 
+
+@Configuration
+public class CorsConfig {
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+configuration.setAllowedOrigins(Arrays.asList("http://example.com"));         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS")); // Allowed methods
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
+ // How long the response from a pre-flight request can be cached by clients
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration); // Apply this configuration to all paths
+        return source;
+    }
+}
+
+
+====Chapter 9: Modules Company====
+
+##I - Model Company## 
+
+1. Tạo model Company
+companies			
+	id		long	
+	name		String	
+	description	String	 => Text
+	address		String	
+	logo		String	
+	createdAt	Date	
+	updatedAt	Date	
+	createdBy	String	
+	updatedBy	String	
+
+@Column(columnDefinition = "MEDIUMTEXT")
+private String description;
+https://stackoverflow.com/a/13932834
+
+
+https://docs.oracle.com/javase/8/docs/api/java/time/Instant.html
+ private Instant createdAt;
+
+đối với 4 trường thông tin: createdAt, updatedAt, createdBy, updatedBy -> sẽ ko gán giá trị ở controller mà viết trực tiếp trong model dùng Hook (life circle của hibernate) lấy thông tin từ Spring security ra để cập nhật 
+
+Sử dụng lombok (dùng thư viện này để nó cung cấp 1 số annotation cho các model -> giúp tự động generate setter/getter/....)
+https://projectlombok.org/#
+https://projectlombok.org/setup/gradle
+
+-> cài đặt thông qa sử dụng plugins (sử dụng thư viện mã nguồn mở) nếu cài thông thường trong gradle -> cần cài khá nhiều dependencies
+-> thêm đoạn này vào plugins trong gradle id("io.freefair.lombok") version "8.6" khi cài đặt plugin này -> nó sẽ kéo lombok về và nó tự cấu hình (lombok) cho dự án 
+plugins {
+  id("io.freefair.lombok") version "8.6" 
+}
+
+sau đó dùng các Annotation @Setter, @Getter cho model -> import từ lombok ko nên dùng cho toString hay hàm tạo (@Data) 
+
+//format date global tải https://drive.google.com/file/d/1tAvG9r5RglSrO-jDITZC6CKJmy3ENBfR/view cấu hình định dạng date 
+
+American vs. European Date Formats:
+American (MM/dd/yyyy): 12/31/2023 (December 31, 2023)
+European (dd/MM/yyyy): 31/12/2023 (31 December 2023)
+
+24-Hour Clock (HH:mm:ss): "23:45:00" (11:45 PM)
+12-Hour Clock (hh:mm:ss a): "11:45:00 PM"
+
+ISO 8601 Standard:
+Date and Time Combined (yyyy-MM-dd'T'HH:mm:ss'Z'): "2023-12-31T15:45:30Z"
+
+UTC Offset: "2023-12-31T10:15:30+01:00" (Time in UTC+1 zone)
+Named Time Zones: "2023-12-31T09:15:30 Europe/Paris"
+
+
+
+
 
 
 
