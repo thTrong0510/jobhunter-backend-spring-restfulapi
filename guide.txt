@@ -1801,6 +1801,287 @@ có 1 cái key là Nguyen Van Thanh Trong được set ở config/SecurityConfiu
 
 có 1 số cú páp code mới: if (authentication.getPrincipal() instanceof UserDetails springSecurityUser) câu trong if này kiểm tra authentication.getPrincipal() có pải kiểu UserDetails nếu pải thì gán nó vào biến springSecurityUser 
 
+##IV - Query với Pagination##
+
+Vấn đề : Lấy danh sách công ty
+GET http://localhost:8080/companies
+
+Cần truyền lên JWT ở header, và không truyền data ở body
+=> Nếu data nhiều, thời gian fetch sẽ lâu, và người dùng cũng không xem hết data 
+=> không hiệu quả
+Ví dụ: https://shopee.vn/Th%E1%BB%9Di-Trang-Nam-cat.11035567
+
+1.Cách xử lý phân trang
+
+Về nguyên tắc: sử dụng offset và limit của SQL 
+https://www.sqltutorial.org/sql-limit/
+
+=> frontend sẽ truyền lên page và limit => backend sẽ tự tính offset
+
+Với Repository:
+JpaRepository kế thừa PagingAndSortingRepository
+Page<T> findAll(Pageable pageable);
+
+=> cần truyền lên đối tượng Pageable là sẽ được phân trang
+
+2. Cách thực hiện
+
+Bước 1: Frontend truyền lên 2 tham số: 
+current //page hiện tại
+pageSize //số lượng bản ghi muốn lấy
+
+@RequestParam("current") Optional<String> currentOptional,
+@RequestParam("pageSize") Optional<String> pageSizeOptional
+
+
+Bước 2: Tạo đối tượng Pageable
+
+//page tính từ 0
+Pageable pageable = PageRequest.of(page - 1, limit); //PageRequest qan hệ cháu với Pageable 
+
+//truyền sang repository => done
+Page<Company> findAll(Pageable pageable); -> chuyển về dạng list dùng .getContent() cái này là của Slice và Page kế thừa lại của Slive
+
+Bước 3: format output
+//cần tạo DTO để return data cho client
+
+Output:
+return {
+      meta: { 
+        current: page, //trang hiện tại
+        pageSize: limit, //số lượng bản ghi đã lấy
+        pages: totalPages,  //tổng số trang với điều kiện query
+        total: totalItems // tổng số phần tử (số bản ghi)
+      },
+      result: array-data //kết quả query
+    }
+cách ở trên đã làm ở Spring MVC
+ // test Pageable
+    @GetMapping("/companies")
+    public ResponseEntity<ResultPaginationDTO> getCompanies(@RequestParam("current") Optional<String> currentOptional,
+            @RequestParam("pageSize") Optional<String> pageSizeOptional) {
+        String currentPage = currentOptional.isPresent() ? currentOptional.get() : "";
+        String pageSize = pageSizeOptional.isPresent() ? pageSizeOptional.get() : "";
+        Pageable pageable = PageRequest.of(Integer.parseInt(currentPage) - 1,
+                Integer.parseInt(pageSize),
+                Sort.unsorted());// trừ 1 vì PageNumber của hàm of này sẽ tính từ 0
+        return ResponseEntity.ok(this.companyService.fetchCompanies(pageable));
+    }
+
+
+Ngoài những cách ở trên pageable Spring cũng hỗ trợ sẵn cho chúng ta nhưng pải theo cú páp của nó trên url: pải có params page=...&size=...&sort=tên thuộc tính mún sort,desc||asc (nếu ko thì mặc định nó sẽ là unsort) -> controller chỉ cần khai báo tham số là Pageable -> thì Spring sẽ tự ép kiểu 2 params đó về thành Pageable luôn ko cần pải tự set
+
+nhưng khi dùng cái của Spring có 1 cái tồn động là trang nó tính từ trang thứ 0 -> mà frontend gửi lên từ 1 -> lỗi -> pải cấu hình lại cho nó bắt đầu từ 1 ngoài ra có thể cấu hình max số lượng sản pẩm trog 1 trang khi hiển thị để tránh người dùng gửi lên qá lớn ... thông qa những link dưới cấu hình trog file properties 
+spring.data.web.pageable.one-indexed-parameters=true //bắt đầu từ 1 ở đây là nó sẽ xử lý khi nhận từ Frontend truyền vào Pageable tự động -1 cho chúg ta ở duy nhất controller pía sau nó vẫn bắt đầu từ 0 nên trong service vẫn pải set meta.setPage(pageable.getPageNumber() + 1) + 1 cho nó hiển thị ra Frontend đúng
+
+//cấu hình pagination:
+https://stackoverflow.com/questions/39884860/how-to-configure-spring-boot-pagination-starting-from-page-1-not-0
+
+https://docs.spring.io/spring-boot/appendix/application-properties/index.html#application-properties.data.spring.data.web.pageable.default-page-size
+
+##V - Giới thiệu về Specification##
+
+//review phần filter của company và fix bug pageNumber + 1
+
+1. Giới thiệu về Specification
+https://docs.spring.io/spring-data/jpa/reference/jpa/specifications.html
+
+Bước 1: repository kế thừa JpaSpecificationExecutor<T>
+
+Nhờ việc kế thừa này, chúng ta có method findAll (truyền thêm Specification)
+List<T> findAll(Specification<T> spec);
+
+Page<T> findAll(Specification<T> spec, Pageable pageable); -> cần truyền vào Specification
+
+Specification là 1 interface trong này chỉ có duy nhất 1 function -> cần override lại là Predicate toPredicate(Root<T> root, CriteriaQuery<?> query, CriteriaBuilder criteriaBuilder) -> cần return về 1 Predicate đối tượng này thực tế chỉ trả ra True/False 
+Predicate được kế thừa bởi CriteriaBuilder -> dùng class này có 1 số function trả về kiểu Predicate
+
+trong hàm này qan trọng nhất là tạo ra Builder -> để xác định điều kiện query
+
+Bước 2: build specification (cú pháp của predicate và CriteriaBuilder)
+
+https://docs.oracle.com/javaee/7/api/javax/persistence/criteria/CriteriaBuilder.html
+
+public class CustomerSpecs {
+
+  public static Specification<Customer> isLongTermCustomer() {
+    return (root, query, builder) -> { //đây là lamda, ghi đề hàm toPredicate
+      LocalDate date = LocalDate.now().minusYears(2);
+      return builder.lessThan(root.get(Customer_.createdAt), date);
+    };
+  }
+
+}
+
+Bước 3: Áp dụng tại service/controller, ví dụ:
+
+List<Customer> customers = customerRepository.findAll(isLongTermCustomer());
+
+2. Vấn đề tồn đọng
+
+Cần viết thủ công từng predicate (Specification) ứng với từng tiêu chí filter
+Ví dụ: filter theo name, address, price …
+
+Không tái sử dụng được logic giữa các Entity có điểm tương đồng, ví dụ entity User và Employee đều có chung thuộc tính name => vẫn viết 2 specification || đây là cách sử dụng ở Spring MVC 
+
+Giải pháp 1: sử dụng generic để tái sử dụng
+https://stackoverflow.com/questions/71904939/jpa-specification-generic-type-class
+https://stackoverflow.com/questions/61241257/how-to-use-single-jpa-specification-class-and-methods-for-multiple-entities
+
+Ưu điểm: có thể tái sử dụng code, và bạn control 100% (từ a tới z)
+Nhược điểm: viết = cơm (có nghĩa là bạn tự code)
+
+Giải pháp 2: sử dụng thư viện
+Ví dụ:
+https://github.com/querydsl/querydsl
+https://docs.spring.io/spring-data/jpa/reference/repositories/core-extensions.html
+
+Ưu điểm: có thể tối ưu hóa query cho bạn (out-of-the-box)
+Nhược điểm: bạn cần tốn thời gian để học cú pháp của thư viện đấy
+
+Giải pháp đề ra: sử dụng “code thuần” hay thư viện không quan trọng
+Điều quan trọng nhất là luyện khả năng tư duy logic
+
+-> cả 2 loại này đều ko dùng cho dự án này - dự án này sẽ dùng thư viện nhưng ko dùng thư viện ở Giải páp 2
+
+##VI - Query với Filter (Part 1)##
+//source code video này sẽ được gộp vào part 2
+
+1.Cài đặt thư viện
+dùng 1 thư viện mã nguồn mở SpringFilter https://github.com/turkraft/springfilter là thư viện do cộng đồng community, các lập trình viên làm chứ ko pải của Spring là thư viện đang được bảo trì maintain 
+
+https://mvnrepository.com/artifact/com.turkraft.springfilter/jpa/3.1.7
+https://github.com/turkraft/springfilter
+// https://mvnrepository.com/artifact/com.turkraft.springfilter/jpa
+
+implementation("com.turkraft.springfilter:jpa:3.1.7") // cần cài thêm version ở cuối vì cái này ko dùng kế thừa theo Spring -> ko ăn theo pần Spring boot cấu hình ở plugin mà của community 
+
+2. Sử dụng thư viện (lưu ý: chưa làm pagination và sorting)
+https://github.com/turkraft/springfilter?tab=readme-ov-file#jpa-integration
+
+Bước 1: cập nhật repository để có thể sử dụng Specification
+@Repository
+public interface UserRepository extends 
+        JpaRepository<User, Long>,
+        JpaSpecificationExecutor<User>
+{
+   
+}
+
+Bước 2: update controller
+sau khi cài thư viện sẽ cho dùng annotation @Filter về cú páp thì ko có trang nào ghi gõ -> chỉ có link github hướng dẫn cấu trúc || cách code 
+
+khi dùng @Filter Specification (Annotation này sẽ giúp các params sau ?filter=... truyền trên url ở Frontend sẽ được ép kiểu về Specification về cho biến sở hữu annotation này) ở pần tham số của controller thì pần params ở Frontend pải theo format ví dụ trên github bắt buộc pải có ?filter="các điều kiện": ?filter= average(ratings) > 4.5 and brand.name in ['audi', 'land rover'] and (year > 2018 or km < 50000) and color : 'white' and accidents is empty....
+
+các Repository muốn dùng pải kế thừa JpaSpecificationExecutor<T> (interface này cũng giúp cung cấp vài function filter theo Specification)
+
+đây là cách làm đơn giản chỉ mới làm với Specification và chưa kết hợp pân trang controller chỉ cần dùng annotation Filter và truyền ở pần params theo format: ?filter=username:'user@gmail.com' and name~'IT',... -> Annotation này giúp ép kiểu các params sau filter thành specification -> rồi chuyển qa service làm 
+@GetMapping("/companies")
+    public ResponseEntity<ResultPaginationDTO> getCompanies(@Filter Specification<Company> spec) {
+        return ResponseEntity.ok(this.companyService.fetchCompanies(spec));
+    }
+
+Bước 3: test với frontend
+//todo
+
+##VII - Query với Filter (Part 2)##
+
+//sử dụng pagination và sorting
+https://www.baeldung.com/spring-data-sorting
+
+Tương tự Spring REST project:
+https://docs.spring.io/spring-data/rest/reference/paging-and-sorting.html
+
+đối với Spring, hỗ trợ out-of-the-box đối tượng Pageable, nếu truyền lên url:
+page
+size
+sort 	
+
+Ví dụ: page=2&size=2&sort=price,asc
+
+##VIII -  Customize Message với Annotation (Extra)##
+Tham khảo:
+https://stackoverflow.com/questions/12260037/how-to-create-custom-annotation-in-java
+https://www.digitalocean.com/community/tutorials/java-annotations
+//java reflection: https://www.oracle.com/technical-resources/articles/java/javareflection.html
+
+về Annotation bản chất là của Java và JavaSpring chỉ kế thừa lại 
+dự án này sẽ viết 1 annotation sau đó dùng nó ở ControllerAdvice tức là trước khi truyền dữ liệu về cho frontend sẽ custom sơ thêm nữa -> gửi về có ý nghĩa hơn
+
+1 Annotation sẽ có 3 pạm vi hoạt động:
+	cho class
+	cho mehthod
+	cho trường thông tin
+
+mô hình: 
+client gửi req -> server (server pải xử lý và gửi về pản hồi) cần pải qa: controller, service, ... nhiều tầng khác và annotation ở đây sẽ là các meta data (thông tin pụ) được đính kèm vào sau khi qa các tầng và qá trìh đính kèm này xảy ra khi đag chạy code chứ ko pải lúc dịch code (đây là qá trình RUNTIME đag chạy) (ngoài ra có thêm qá trìh nữa là compile time là lúc dịch code chưa chạy dự án)
+
+để can thiệp vào qá trìh chạy dự án (RUN TIME) có 1 API là Java Reflection(tự tìm hiểu thêm)
+
+sau khi tạo annotation để sử dụng thì cần thông qa các API của Java nó cho pép sử dụng: annotation trag trí cho class, method, element -> phụ thuộc vào nơi lấy annotation (annotation giúp can thiệp trog qá trình chạy) -> nơi đag chạy khác nhau sẽ có cách lấy annotation khác nhau
+	Muốn lấy ra bên trong class -> có thể dựa vào chính class đó lun và class đó pải được trang trí bởi annotation đó 
+	hay bây h mún lấy nó từ Exception bên trong controllerAdvice:  bây h sẽ viết annotation bên trong 1 url/api trong cotroller -> muốn lấy annotation trang trí cho url/api đó nhưng lấy ở controllerAdvice -> 2 nơi khác nhau -> thì pải tìm côg cụ hỗ trợ tùy thuộc vào trường hợp/nơi đang đứng
+
+Bước 1: tạo ra annotation
+https://www.geeksforgeeks.org/java-retention-annotations/
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface ApiMessage {
+    String value();
+}
+
+Bước 2: sử dụng annotation
+@GetMapping("/users")
+@ApiMessage("fetch all users")
+public ResponseEntity<ResultPaginationDTO> getAllUser()
+
+Bước 3: Lấy giá trị của annotation
+//phụ thuộc vào nơi bạn lấy giá trị của annotation, sẽ có các cách lấy giá trị khác nhau
+https://stackoverflow.com/a/47922587
+
+đối với dự án này sẽ lấy ở trong FormatRestResponse thông qa tham số đầu vào MethodParameter returnType và lấy thông qa ApiMessage message = returnType.getMethodAnnotation(ApiMessage.class);  cần truyền vào class muốn lấy anntation nào thì truyền vào class viết annotation đó (nó pải chạy qa controller -> FormatRestResponse -> sau đó mới lấy giá trị của Annotation và chỉ lấy khi nó có giá trị vì nếu t chạy luồng khác (cụ thể là qa API/url khác -> ko qa method trog controller được trang trí nó) -> ko có giá trị)
+
+//MethodParameter returnType
+ApiMessage message = returnType.getMethodAnnotation(ApiMessage.class);
+
+
+##IX - Versioning  API##
+Yêu cầu:
+Update api, bắt đầu với tiền tố: /api/v1/
+Ví dụ: https://developers.facebook.com/tools/explorer/
+
+version sẽ đáh giá qá trìh pát triển pần mềm -> mỗi version có thể có những thay đổi nhất định để đánh dấu version có khác nhiều cách 1 trog số đó là đánh dấu trực tiếp vào url kèm theo api đối với version đó 
+	ghi trực tiếp vào url (cách phổ biến nhất)
+	can thiệp và header pần content-type thay version vào đây
+	tự tạo header -> ném ra
+
+
+
+Tham khảo:
+- Cách làm thủ công (đánh version): https://stackoverflow.com/a/39066141
+làm thủ công -> tạo 1 annotation ApiVersion trang trí vào class/method/element cần customize lại qá trìh xử lý @RequestMapping can thiệp vào spring = cách kế thừa lại RequestMappingHandlerMapping sau đó sau khi annotation chạy -> cần quét qa annotation đó -> để nói cho spring biết nên chạy controller/method nào để pù hợp với version đó -> khá pức tạp
+
+việc tổ chức api này sẽ có 2 cách:
+	code tất cả version bên trong 1 source code (dùng cho dự án nhỏ ít thay đổi -> nếu thay đổi thì có thể ảh hưởng đến các phần còn lại) như kiểu stateful
+	code chia ra mỗi version mỗi source code (làm nhiều hơn nhưng rất linh động thay đổi || điều chỉnh cho từng version thoải mái) như kiểu stateless
+
+đối với dự án này sẽ làm đơn giản: thay vì việc tạo thêm 1 annotation -> chỉ cho dự án có 1 version -> sử dụng annotation có sẽ là RequetsMapping (khai báo với pạm vi là class và tất cả method bên trong class sẽ kế thừa lại)
+-> bây h muốn all api trong class UserController pải bắt đầu = /api/v1 -> bên trên class UserController thêm annotation @RequestMapping("/api/v1")
+
+nếu muốn khai báo động đối với version thì có thể khai báo vào .properties 
+
+- Thư viện: https://github.com/lkqm/spring-api-versioning
+
+
+
+
+
+
+
+
+
+
 
 
 
