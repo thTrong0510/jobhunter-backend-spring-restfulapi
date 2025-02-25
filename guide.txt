@@ -1736,6 +1736,75 @@ UTC Offset: "2023-12-31T10:15:30+01:00" (Time in UTC+1 zone)
 Named Time Zones: "2023-12-31T09:15:30 Europe/Paris"
 
 
+##II - Before Save Entity với JPA (Part 1)##
+
+Tài liệu: https://stackoverflow.com/questions/45064420/business-logic-before-to-save-an-entity-in-spring-jpa
+https://docs.jboss.org/hibernate/orm/6.5/userguide/html_single/Hibernate_User_Guide.html#events-jpa-callbacks
+https://www.baeldung.com/jpa-entity-lifecycle-events
+https://www.timestamp-converter.com/
+
+Làm 2 việc: update thông tin của company trước khi lưu vào database ở model chứ ko làm ở (Controller hay Service) 
+
+1 - Thêm thông tin người tạo + thời gian tạo
+- dùng Entity Listeners and callback methods đây là của thư viện Hibernate ko pải của JPA 
+- Về thư viện: thì trong các dependencies như data-jpa hay validation nó đã cài sẵn một vài thư viện của Hibernate đủ dùng cho pần này -> ko cần cài thêm gì 
+- Có 2 cách: 
+	Khai báo 1 Listeners cho 1 class @EntityListeners(class=Audit.class) ~ AOP mọi hành động đều pái ghi lại lịch sử (input đầu vào, output đầu ra, ...) 
+	Callback function(dùng cái này): dùng các Annotation này cho các function tương ứng 
+		@PrePersist: trước khi lưu vào database
+		@PreRemove: --- xóa
+		@PreUpdate: --- cập nhật
+		@PostPersist: sau khi lưu vào database
+		@PostRemove: --- xóa
+		@PostUpdate: --- cập nhật 
+		@PostLoad: sau khi load data 	
+	Lưu ý khi dùng callback function:
+		kiểu trả về pải là void
+		ko có tham số truyền vào
+
+
+    @PrePersist
+    public void beforeSave() {
+        this.createdBy = "Thanh Trong";
+        this.createdAt = Instant.now();
+    }
+
+thời gian ở đây lưu thêm chuẩn ISO: giờ đag hiển thị lỗi vì đây mặc định + múi giờ 0 nhưng ở VN thì pải + múi g 7
+
+##III - Before Save Entity với JPA (Part 2)##
+1. Format timezone
+https://www.digitalocean.com/community/tutorials/java-8-date-localdate-localdatetime-instant
+https://stackoverflow.com/questions/71854271/java-instant-datetime-how-to-get-the-datetime-with-timezone-offset-only-without
+
+đối với instant -> ko cấu hình được pần time zone (tức là mặc định nó dùng time zone ~ GTM+0 -> nếu ko ép kiểu khác sẽ ko +7 lên được ví dụ convert sang ZonedDateTime để chuyển đổi kiểu dữ liệu lưu vào database)
+
+nhưng ở đây sẽ ko làm vậy mà vẫn dùng instant vì instant sẽ lấy chính xác h tại máy tính (server) đag đứng -> nếu bây h cấu hình GTM+7 nếu qa địa điểm khác cần cấu hình lại -> giải páp vẫn lưu GTM+0 ở database và dùng 1 Annotation để format nó thành GTM+7 ở backend sau khi lấy nó ra khỏi database và trc khi truyền nó ra view 
+
+Annotation @JsonFormat(pattern = "", timezone = "") cái này được import từ thư viện Jackson -> dùng thư viện này thường sẽ xử lý trả về cho frontend 
+
+ở đây là Format ở Backend -> trả về cho Frontend thực tế ta có thể Format tại Frontend
+
+2. Spring Security Context
+//tham khảo https://drive.google.com/file/d/1Yy0wMPtMTmyfBmX5ylH6HK9ipW2Vd5Pp/view
+
+lấy thông tin người tạo company (người dùng hiện tại) để gán vào createdBy trước khi lưu xún database qa dữ liệu đã lưu vào SecurityContext thông qa SecurityContextHolder 
+
+ở AuthController.java khi đăng nhập thành công t lưu thông tin authentication vào:         SecurityContextHolder.getContext().setAuthentication(authentication); -> ta sẽ lấy người ra từ đây -> getAuthentication()
+
+copy các function trong link trên: trong code thì lấy email qa function getCurrentUserLogin() trong này nó gọi đến function extractPrincipal(Authentication authentication) trong này nó sẽ kiểm tra và thấy thông tin từ authentication và kiểu của authentication.getPrincipal() là instance của Jwt sau đó nó gán jwt = authentication.getPrincipal() -> lấy ra tên email thông qa jwt.getSubject(): rõ hơn về qá trình lấy email này
+	hàm getSubject() này là của class JwtClaimAccessor 
+	default String getSubject() {
+		return this.getClaimAsString(JwtClaimNames.SUB);
+	}
+thông qa getClaim và JwtClaimNames.SUB trong jwt có pần claim là 1 kiểu collection chứa từng cặp key,value SUB là key của pần email 
+có 1 cái key là Nguyen Van Thanh Trong được set ở config/SecurityConfiuration.java ngay chỗ convert từ Jwt -> authentication để lưu vào SecurityContext grantedAuthoritiesConverter.setAuthoritiesClaimName("Nguyen Van Thanh Trong"); ngày pần claimName || trong pần function CreateToken mình có lưu email của người dùng đăng nhập thành công trong subject .subject(authentication.getName()) -> sẽ lấy email qa subject chứ ko thông qa claim -> sau này sẽ sửa đổi thông tin trong claim này để truyền cho Frontend 
+
+có 1 số cú páp code mới: if (authentication.getPrincipal() instanceof UserDetails springSecurityUser) câu trong if này kiểm tra authentication.getPrincipal() có pải kiểu UserDetails nếu pải thì gán nó vào biến springSecurityUser 
+
+
+
+
+
 
 
 
