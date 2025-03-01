@@ -2074,6 +2074,271 @@ nếu muốn khai báo động đối với version thì có thể khai báo và
 - Thư viện: https://github.com/lkqm/spring-api-versioning
 
 
+====Chapter 10: Modules User====
+Thực hiện CRUD với model User
+
+##I - Update User Model##
+
+//cập nhật các thông tin sau
+id		long
+name		String
+email		String
+password	String
+age		int
+gender		Enum // MALE/FEMALE
+address		String
+refreshToken	String
+createdAt	Date
+updatedAt	Date
+createdBy	String
+updatedBy	String
+
+đối với giới tính -> ko hashcode dữ liệu mà dùng enum 
+
+1. Giới thiệu về Enum
+https://docs.oracle.com/javase/tutorial/java/javaOO/enum.html
+
+dùng enum -> có thể thay đổi dữ liệu cho những trường sử dụng nó sau này nếu cần thay đổi 1 cách linh hoạt 
+cấu hình khi tương tác ở controller thì dùng enum -> database thì lưu dưới dạng String vì trog code model thì trường thông tin Gender có kiểu enum nhưng database thì ko có kiểu dữ liệu này -> sẽ ko hoạt động -> dùng Annotation @Enumerated(EnumType.ORDINAL/STRING) với ordinal thì nó sẽ lưu dạng 0,1,2... 
+
+//sử dụng enum với Entity
+https://stackoverflow.com/questions/67825729/using-enums-in-a-spring-entity
+
+https://dev.to/noelopez/spring-rest-working-with-enums-ma
+
+//enum so với constant
+Việc sử dụng enum sẽ ép kiểu dữ liệu chặt hơn so với constant => an toàn hơn cho dự án của bạn
+https://stackoverflow.com/questions/11575376/why-use-enums-instead-of-constants-which-is-better-in-terms-of-software-design
+
+
+##II - CRUD User##
+1 - Create user
+	kiểm tra email đã tồn tại hay chưa (throw exception)
+	dùng DTO để chỉ trả về thông tin user ko có password + chỉ hiển thị createdAt (dùng cách này kiểm soát all)
+	hoặc dùng @JsonIgnore(trong model) để bỏ qa những trường ko muốn đưa lên view 
+2 - Read User
+	bỏ password
+
+3 - Update user
+	tương tự như trên 
+
+4 - Delete user
+
+##III - API Login##
+
+1. Trả về phản hồi cho api, bao gồm access_token và thông tin của user, theo format sau:
+{
+    accessToken: "JSON WEB TOKEN",
+    user:  {
+        email: "hoidanit@gmail.com",
+        name: "Hỏi Dân IT",
+        id: "25"
+       }
+}
+
+quá trình đăng nhập ở AuthController.java thì chúng ta chỉ lấy được email + password gửi lên từ pía frontend
+quá trình đăng nhập và xử lý thông tin sẽ xảy ra ở đây Authentication authentication = authenticationManagerBuilder.getObject().authenticate(authenticationToken); -> nó sẽ chạy vào UserDetailsCustom.java -> loadUserByUserName() trong này có set 1 số thông tin của người dùng trả về kiểu User của hệ thôngsau đó return về chỗ Authentication -> nếu muốn lấy thông tin từ đây trong này có principal lưu 1 số thông tin mặc định mà hệ thống quy định -> một số thông tin cần thiết muốn lấy thêm sẽ ko được lưu vào đây -> cần cấu hình lại mà all thông tin của người dùng đều lưu trong princical mà kiểu dữ liệu của biến này là User(của hệ thống) -> cần override lại User này dùng User của mình (kế thừa lại UserDetails (đây là cách khá pức tạp)
+
+cách làm đơn giản hơn là sau câu lệnh xác thực -> đã đăng nhập thành công sẽ query trực tiếp user đó xún database = email -> nạp thông tin cần thiết vào DTO rồi gửi ra view 
+
+
+2. refresh_token sẽ lưu vào cookies
+
+##IV - Set Cookies (Part 1)##
+//source code video này được gộp vào #84
+
+1.Giới thiệu về cookies
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
+
+Với browser, để lưu trữ data của user, có 3 cách hay dùng nhất: 
+Local Storage : thông tin được lưu trữ mãi mãi, không bao giờ mất
+Session Storage: bạn đóng browser là thông tin lưu trữ sẽ clear
+
+Cookies: chỉ mất khi và chỉ khi “bị hết hạn” (không liên quan gì tới việc đóng browser)
+
+// các thuộc tính thường dùng
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
+Expires : thời gian hết hạn, định dạng Date
+Max-Age: thời gian hết hạn, định dạng number (seconds) (độ ưu tiên cao hơn Expires)
+HttpOnly : boolean (thường set = true để không cho client JS truy cập/sử dụng cookie mà chỉ có server mới lấy được cookies)
+
+//cơ chế thường dùng trong mô hình stateless (liên quan tới cookies)
+Người dùng sau khi login thành công, sẽ được server trả về:
+access_token : token để định danh người dùng (thời gian sống ngắn : 5 phút, 10 phút…) khi đã tạo ra thì ko thay đổi được -> set thời gian sống ngắn 
+
+refresh_token : nếu access token bị hết hạn, sử dụng refresh token để renew (thời gian sống lâu hơn nhiều, thường là 1 ngày, 30 ngày … ) thường được lưu vào cookies 
+
+=> access token được lưu tại Local Storage (frontend dễ dàng truy cập và sử dụng) . Đặt thời gian sống ngắn để giảm thiểu rủi ro
+
+Refresh token được lưu tại cookies với mục đích là Server sử dụng (vì cookie luôn được gửi kèm với mỗi lời gọi request) => lưu ở cookies sẽ an toàn hơn (do thời gian sống của token lâu hơn access token)
+
+
+
+//cơ chế hoạt động của cookies 
+Có bao giờ bạn thắc mắc tại sao Facebook, Google, Tiktok… 1 tuần, 1 tháng , 1 năm… bạn không cần đăng nhập lại (trên cùng 1 máy tính) mỗi lần sử dụng ?
+
+Câu trả lời là cookies.
+Trong lần đăng nhập đầu tiên thành công, Server (FB, Tiktok…) sẽ trả về thông tin của người dùng và lưu vào cookies. 
+Cookies này thường có thời hạn sống khá lâu (vài tháng tới cả năm)
+
+=> sau vài tháng bạn vào lại, cookies sẽ đc sử dụng (refresh token) để đổi lấy access token mới => bạn không cần login lại :v
+
+
+2. Luồng logic
+
+//update thời gian của access và refresh token (chia thành 2 biến riêng lẻ)
+hoidanit.jwt.token-validity-in-seconds=8640000 hiện tại chỉ để thời gian hết hạn chung chung của token -> cần tách ra 
+
+//tạo refresh token (chứa user email)
+Subject (sub) : đối tượng mà token này hướng tới (định danh user)
+=> sử dụng email là ok
+
+Claim (key: value): meta data => lưu gì cũng đc
+
+ user:  {
+        email: "hoidanit@gmail.com",
+        name: "Hỏi Dân IT",
+        id: "25"
+       }
+
+
+
+//update user với refresh token
+Trong securityUtil.java thêm 1 hàm createRefreshToken nữa pần này sẽ xử lý tương tự createAccessToken (nhưng thời gian sống sẽ lâuu hơn) và ko được return về cho client ở pần body/header mà lưu nó vào cookies 
+
+//set cookies to client (có thể test = postman)
+
+##V - Set Cookies (Part 2)##
+Tài liệu:
+https://reflectoring.io/spring-boot-cookies/
+link làm sẵn nếu code thuần MVC có thể dùng trực tiếp đối tượng Cookie 
+
+https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/http/ResponseCookie.html
+đối với Spring có hỗ trợ class ResponseCookie -> có 1 hàm builder chỉ cần truyền vào tên và giá trị -> nó sẽ tự tạo cookies 
+
+//update user với refresh token
+
+set cookie
+ResponseCookie responseCookie = ResponseCookie.from("refresh_token", refreshToken)
+                .httpOnly(true)//tăng bảo mật chỉ có server mới lấy được cookie js ko lấy được
+                .secure(true)// cookie chỉ được sử dụng cho https nếu ta dùng localhost -> builder này ko có tác dụng 
+                .path("/")//cookie này áp dụng cho all đường link vào nếu set nó /api/v1 -> áp dụng cho những link bắt đầu = nó
+                .maxAge(8640000)//thời gian sống nếu để mặc định sẽ là session 
+                .domain("example.com")//ghi tên website -> chỉ áp dụng cookie cho web này nếu ko ghi thì website nào nó cũng gửi kèm cookie này domain ở đây ko set thì sẽ ứng với localhost 
+		.build();
+
+//set cookies to client (có thể test = postman)
+// các thuộc tính thường dùng
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
+
+Path: url set cookie
+Domain: nếu không set, thì chỉ chính same domain (không tính sub domain)
+
+##VI - API Get Account (F5 - Refresh)##
+
+Bài toán:
+Với mô hình stateful, khi user F5 (refresh website), client sẽ gửi lên session_id (lưu ở cookies), server sẽ check session để biết user nào đang đăng nhập.
+
+Với mô hình stateless, không có sử dụng session, thay vào đấy là access_token và refresh_token.
+
+=> khi user F5, cần gọi API của backend, vì client không có khả năng decode (giải mã) access_token để biết được ai là người đang đăng nhập.
+
+khi giải mã token -> thì nó lưu 1 claim user -> này là được thiết lập ở trong lưu tạo token -> lưu claim là nguyên cái authentication luôn trong này mục đích chính là lưu vai trò của người dùng -> được lưu trong user.princical.authorizies h mình sẽ customize lại cái này ko lưu authentication nữa mà lưu 1 DTO (chưa đụng tới role khi có sẽ add thêm) -> lúc này khi tạo token sẽ ngắn hơn vì lưu ít thông tin hơn trước 
+JwtClaimsSet claims = JwtClaimsSet.builder()
+            .issuedAt(now)
+            .expiresAt(validity)
+            .subject(authentication.getName())//định danh người dùng là ai ở đây thì dùng với email
+            .claim("user", authentication)//chỉ những thành pần biểu diễn cái object
+            .build();
+
+Yêu cầu:
+Tạo endpoint: GET  /api/v1/auth/account
+
+Chỉ cần truyền lên JWT ở header 
+
+Response:
+
+{
+    "statusCode": 200,
+    "message": "Get user information",
+    "data": {
+            "id": "....",
+            "name": "...",
+            "email": "...",
+           }
+}
+
+
+##VII - Giải thích cơ chế JWT và Spring Security (Extra)##
+
+Do sử dụng mô hình stateless (tách riêng frontend và backend), nên không thể sử dụng session, chúng ta sử dụng token để định danh người dùng.
+
+Để truy cập endpoint (APIs) tại backend, đối với mỗi lời gọi (request), frontend cần truyền thêm Token (gọi là access token). Token này sẽ được gán ở header mỗi request (Bearer Token)
+
+Access Token này có thời gian sống ngắn (thực tế được dùng từ 30 phút tới 1 ngày) để đảm bảo an toàn, đồng thời, được viết dưới dạng JWT (JSON Web Token)
+
+1. API Login
+POST http://localhost:8080/api/v1/auth/login
+Mục đích: client (frontend) lấy được access token để truy cập API backend, đồng thời có được refresh token (sử dụng khi access token hết hạn)
+
+Cơ chế xử lý tại backend:
+Xử lý đăng nhập với Spring Security, và nếu đăng nhập thành công, tạo ra access token, bao gồm 2 thành phần:
+
+subject (sub): đối tượng của Token (đảm bảo tính duy nhất), sử dụng email là hợp lý
+claim : thông tin miêu tả về token
+
+Ví dụ về access token (chứa user)
+
+eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJob2lkYW5pdEBnbWFpbC5jb20iLCJleHAiOjE3MjQwNTkzNTEsImlhdCI6MTcxNTQxOTM1MSwidXNlciI6eyJpZCI6MSwiZW1haWwiOiJob2lkYW5pdEBnbWFpbC5jb20iLCJuYW1lIjoiSOG7j2kgRMOibiBJVCJ9fQ.0V3Ss4AWnHf8f6HtSEWKlchHSJAmHW0ef3WUtDj2fn0vGYEjbyqIO2nor0lq06DTcAOAthT9BBvQ3gD9M0jThw
+
+
+Ví dụ về access token (chứa user và permission)
+eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJob2lkYW5pdEBnbWFpbC5jb20iLCJwZXJtaXNzaW9uIjpbIlJPTEVfVVNFUl9DUkVBVEUiLCJST0xFX1VTRVJfVVBEQVRFIl0sImV4cCI6MjU3OTQ3NjQ0MCwiaWF0IjoxNzE1NDc2NDQwLCJ1c2VyIjp7ImlkIjoxLCJlbWFpbCI6ImhvaWRhbml0QGdtYWlsLmNvbSIsIm5hbWUiOiJI4buPaSBEw6JuIElUIn19.Wa0Cc0zx9AgGpWYpZ3Ucjk5PyENCNDAsdjpoZnOY06jRnk4hpFf9cFyZfrvWWKZI839JX7_gSZ56TTXMrV9dFw
+
+2. Với tất cả các API khác (cần truyền access token ở header)
+-> sử dụng mặc định của Security thêm những thông tin cần vào thuộc tính đã có trog authentication 
+-> còn nếu muốn gửi thêm những thông tin khác chỉ có thể override lại User mặc định của hệ thống 
+
+-> muốn lưu thêm ngoài thông tin user thì + builder thêm 1 claim nữa (claim có thể lưu nhiều): 
+//add claim permission
+        List<String> listAuthority = new ArrayList<String>();
+        listAuthority.add("ROLE_USER_CREATE");
+        listAuthority.add("ROLE_USER_UPDATE");
+	...
+	.claim("permission", listAuthority) 
+(claim ở đây được mã hóa trong token nhưng khi trả ra request chúng t ko trả ra nó nên sẽ ko hiển thị để xem thì có thể dịch token trên jwt.io)
+ở đây thì thêm claim permission thông tin ở đây sẽ được lưu vào SecurityContext đc set ở hàm convert JWT -> authentication: grantedAuthoritiesConverter.setAuthoritiesClaimName("permission"); khi set vào setAuthoritiesClaimName thì kiểu dữ liệu pải là các chuỗi String ko được là kiểu dữ liệu khác vì sẽ bị lỗi 
+
+Khi gửi bất kì request nào cũng cần token vì đã set JWT ở config .oauth2ResourceServer((oauth2) -> oauth2.jwt(Customizer.withDefaults()) -> h nó đính kèm theo header thì: mỗi lần gửi request lên function đầu tiên nó chạy vào sẽ là jwtDecoder() sau đó nó chạy vào những class cần thiết đặc trưng
+
+//tiền hành debug
+//nạp quyền hạn (authority) từ jwt vào security context
+JwtGrantedAuthoritiesConverter: sẽ chạy vào hàm convert(Jwt jwt) bởi vì đã cấu hình ở config việc grantedAuthoritiesConverter.setAuthoritiesClaimName("permission") -> tức là nó sẽ giải mã token lấy đi cái nào có nam="permission" -> nạp vào authentication mặc định của nó 
+-> nó sẽ set authorities chạy vào hàm getAuthorities(Jwt jwt): trong này nó chỉ set 2 trường hợp sẽ set được thông tin vào là kiểu dữ liệu của permission pải là String || collection (nếu là collection thì những dữ liệu lưu trong collection này pải ép về kiểu String được nếu ko đc nó sẽ lỗi) 
+cuối cùng nó trả về Collection<GrantedAuthority> 1 collection của Authority -> authentication
+
+//filter
+BearerTokenAuthenticationFilter: doFilter()-context.setAuthentication(authenticationResult) -> set authentication vào SecurityContext trong này có thuộc tính authorities chứa các quyền mà được set ở trên viêc set authories này bắt đầu từ việc cấu hình ở config và sử dụng ở việc pân quyền 1 API trong config .hasAuthority() -> sẽ lấy authority đã set để sử dụng ở đây
+
+nhưng trong dự án này sẽ ko làm thủ công vậy (vì nếu muốn pần quyền cho nhiều API pải viết cho từng cái ...) 
+
+chung quy lại thì vẫn đang dùng all things mặc định của Security chỉ điều chỉnh sơ giá trị lưu trong đó - chứ chưa thêm sửa thuộc tính gì
+
+Khi gửi request gồm access token, hàm decode sẽ được chạy đầu tiên để giải mã token
+
+//SecurityConfiguration.java
+ return jwtDecoder.decode(token);
+
+Kế tiếp, sẽ tiến hành nạp “authority” (quyền hạn) vào security context. Làm được điều này, do có:
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+           grantedAuthoritiesConverter.setAuthoritiesClaimName("permission");
+
+           return jwtAuthenticationConverter;
+    }
+
+
+
 
 
 

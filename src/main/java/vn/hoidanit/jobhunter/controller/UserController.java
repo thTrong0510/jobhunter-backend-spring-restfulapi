@@ -14,10 +14,17 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.turkraft.springfilter.boot.Filter;
 
+import jakarta.validation.Valid;
+import vn.hoidanit.jobhunter.domain.RestResponse;
 import vn.hoidanit.jobhunter.domain.User;
 import vn.hoidanit.jobhunter.domain.dto.ResultPaginationDTO;
+import vn.hoidanit.jobhunter.domain.dto.ResCreateUserDTO;
+import vn.hoidanit.jobhunter.domain.dto.ResUpdateUserDTO;
+import vn.hoidanit.jobhunter.domain.dto.ResUserDTO;
 import vn.hoidanit.jobhunter.service.UserService;
 import vn.hoidanit.jobhunter.util.exception.IdInvalidException;
 
@@ -34,15 +41,13 @@ public class UserController {
     }
 
     @GetMapping("/users/{id}")
-    public ResponseEntity<User> getUser(@PathVariable("id") Long id) throws IdInvalidException {
-        if (id == null) {
-            return ResponseEntity.status(HttpStatus.OK).body(null);
-        }
-        if (id > 100) {
-            throw new IdInvalidException("user ko ton tai");
+    public ResponseEntity<ResUserDTO> getUser(@PathVariable("id") Long id) throws IdInvalidException {
+        if (this.userService.fetchUserById(id) == null) {
+            throw new IdInvalidException("Id user: " + id + " not found");
         }
 
-        return ResponseEntity.status(HttpStatus.OK).body(this.userService.fetchUserById(id));
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(this.userService.convertToResUserDTO(this.userService.fetchUserById(id)));
     }
 
     @GetMapping("/users")
@@ -51,20 +56,30 @@ public class UserController {
     }
 
     @PostMapping("/users")
-    public ResponseEntity<User> createUser(@RequestBody User userJson) {
+    public ResponseEntity<ResCreateUserDTO> createUser(@Valid @RequestBody User userJson) throws IdInvalidException {
+        if (this.userService.checkExistedEmail(userJson.getEmail())) {
+            throw new IdInvalidException(userJson.getEmail() + "was Existed email");
+        }
         userJson.setPassword(passwordEncoder.encode(userJson.getPassword()));
         User user = this.userService.saveUser(userJson);
-        return ResponseEntity.status(HttpStatus.CREATED).body(user);
+        return ResponseEntity.status(HttpStatus.CREATED).body(this.userService.convertToResCreateUserDTO(user));
     }
 
     @DeleteMapping("/users/{id}")
-    public ResponseEntity<Void> deleteUserById(@PathVariable("id") long id) {
+    public ResponseEntity<Void> deleteUserById(@PathVariable("id") long id) throws IdInvalidException {
+        if (this.userService.fetchUserById(id) == null) {
+            throw new IdInvalidException("Id user: " + id + " not found");
+        }
+
         this.userService.deleteUserById(id);
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/users")
-    public ResponseEntity<User> updateUser(@RequestBody User userJson) {
+    public ResponseEntity<ResUpdateUserDTO> updateUser(@RequestBody User userJson) throws IdInvalidException {
+        if (this.userService.checkExistedEmail(userJson.getEmail())) {
+            throw new IdInvalidException(userJson.getEmail() + "was Existed email");
+        }
         User user = this.userService.fetchUserById(userJson.getId());
         if (user != null) {
             user.setEmail(userJson.getEmail());
@@ -73,6 +88,7 @@ public class UserController {
 
             user = this.userService.saveUser(user);
         }
-        return ResponseEntity.ok(user);
+        return ResponseEntity.ok(this.userService.convertToResUpdateUserDTO(user));
+
     }
 }
