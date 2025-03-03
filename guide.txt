@@ -2421,6 +2421,147 @@ https://reflectoring.io/spring-boot-cookies/
 
 Trả về phản hồi cho client : ResponseEntity<Void>
 
+##X - API Logout##
+
+Yêu cầu: Tạo endpoint
+
+POST api/v1/auth/logout
+
+Truyền lên JWT ở header
+
+Response : 
+{
+    "statusCode": 200,
+    "message": "Logout User",
+    "data": null
+}
+
+Xử lý ở backend:
+Nhờ có spring security, lấy ra email của người dùng
+
+Update refresh_token === null (empty) (tìm theo email)
+
+Remove refresh_token ở cookies (remove cookies)
+https://reflectoring.io/spring-boot-cookies/
+
+Trả về phản hồi cho client : ResponseEntity<Void>
+
+##XI - Nguyên tắc check code frontend##
+
+1.Rule tuân theo
+Code frontend chỉ lỗi, khi và chỉ khi bạn không chạy lên được dự án frontend.
+
+Tất cả các trường hợp còn lại, nếu đã chạy thành công dự án frontend, tuy nhiên, check giao diện không được kết quả như video hướng dẫn, cần check response của api, tức là lỗi của backend java.
+
+Lỗi ở đây, là backend java đang viết API trả ra định dạng “không phải là thứ frontend mong muốn”.
+
+API chạy được, nhưng cần đảm bảo trả ra đúng định dạng (format) mà frontend mong muốn
+
+2. Danh sách API cần check trong module này
+Fix bug 1 : https://stackoverflow.com/questions/12583638/when-is-the-jsonproperty-property-used-and-what-is-it-used-for
+public class ResLoginDTO {
+    @JsonProperty("access_token")
+    private String accessToken;
+
+//todo: fix bug còn lại
+trong CorsCofig.class 
+	thêm 1 số url để test frontend http://localhost:5173, http://localhost:4173
+	setAllowedHeaders: x-no-retry 
+-> xử lý lỗi cors 	
+	
+
+1.API login
+POST http://localhost:8080/api/v1/auth/login
+
+{
+    "statusCode": 200,
+    "error": null,
+    "message": "CALL API SUCCESS",
+    "data": {
+        "access_token": "jwt token",
+        "user": {
+            "id": 1,
+            "email": "hoidanit@gmail.com",
+            "name": "Hỏi Dân IT"
+        }
+    }
+}
+2. API Get Account 
+GET http://localhost:8080/api/v1/auth/account
+
+{
+    "statusCode": 200,
+    "error": null,
+    "message": "fetch account",
+    "data": {
+        "user": {
+            "id": 1,
+            "email": "hoidanit@gmail.com",
+            "name": "Hỏi Dân IT"
+        }
+
+    }
+}
+
+
+3. API get refresh token
+GET http://localhost:8080/api/v1/auth/refresh
+
+{
+    "statusCode": 200,
+    "error": null,
+    "message": "Get User by refresh token",
+    "data": {
+        "access_token": "jwt token",
+        "user": {
+            "id": 1,
+            "email": "hoidanit@gmail.com",
+            "name": "Hỏi Dân IT"
+        }
+    }
+}
+
+4. Các API về CRUD
+=> check video bài tập CRUD
+
+##XII -Test giao diện frontend##
+Version node.js mình sử dụng là 16.20.0:
+https://nodejs.org/download/release/v16.20.0/
+
+Cài chính xác version để hạn chế tối đa lỗi có thể xảy ra. (nvm)
+
+Kiểm tra đã cài đặt thành công với câu lệnh: node -v
+
+Link dự án frontend download https://drive.google.com/file/d/1Dqh5yA6JPrfvSBjLhKTEqaSbKmXy924X/view?usp=sharing
+Bước 1: 
+Tải dự án thực hành ở trên (đã ứng với branch test-1)
+
+Lưu ý về check file env, đảm bảo backend chạy chính xác port
+
+Bước 2: cài đặt thư viện cần thiết
+npm i
+
+Bước 3: build dự án
+npm run build
+
+Bước 4: chạy dự án tại chế độ production
+npm run preview
+
+//test dự án = tab ẩn danh (hoặc cần clear hết cookies/localStorage ứng với port 3000)
+
+Các tính năng test:
+Login thành công, trả về token
+Access token lưu tại Local Storage
+Refresh token lưu tại Cookies
+
+CRUD user User/Company http://localhost:3000/admin
+
+Demo tính năng khi access token (test = cách setup tại backend) ( x-no-retry )
+//bổ sung header để không bị cors
+
+
+
+
 
 
 
