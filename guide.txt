@@ -2560,8 +2560,54 @@ Demo tính năng khi access token (test = cách setup tại backend) ( x-no-retr
 //bổ sung header để không bị cors
 
 
+====Chapter 11: Modules Job/Resume====
+Bài tập thực hành tạo module Job/Resume: CRUD job/resume, kết hợp việc sử dụng upload/download file với Java Spring
+
+##I - Code Refactoring
+
+Tổ chức lại thư mục domain và service
+Chia thành request/response
+
+##II - 93. Model Relationship (Associations)##
+Tài liệu: 
+https://docs.jboss.org/hibernate/orm/6.4/introduction/html_single/Hibernate_Introduction.html#associations
+
+https://www.baeldung.com/jpa-hibernate-associations
+
+1. Phân loại
+Gồm 3 loại quan hệ chính:
+
+One to One : quan hệ 1 - 1
+One to Many hay Many to One : quan hệ 1 - nhiều ( 1 - N )
+Many to many : quan hệ nhiều - nhiều ( N - N )
+
+Chỉ chiều hướng mối quan hệ (ràng buộc cha/con), chúng ta có 2 keywords:
+unidirectional : quan hệ 1 chiều
+
+bidirectional: quan hệ 2 chiều
+
+Quan hệ giữa User - Company:
+1 user chỉ thuộc 1 công ty ( 1 - 1 )
+1 công ty bao gồm nhiều user ( 1 - N )
+=> mối quan hệ giữa User và Company là N - 1
+
+2. Áp dụng cho Model
+
+1 user chỉ thuộc 1 công ty  => table User sẽ lưu company_id
+N user cùng thuộc 1 công ty => ManyToOne
+@ManyToOne
+@JoinColumn(name = "company_id")
+private Company  company;
+
+1 công ty có nhiều user => OneToMany
+@OneToMany( mappedBy = “company”)
+List<User> users;
 
 
+3. Fetch Lazy or Eager ?
+https://www.baeldung.com/hibernate-lazy-eager-loading
+
+https://stackoverflow.com/questions/2990799/difference-between-fetchtype-lazy-and-eager-in-java-persistence-api
 
 
 
