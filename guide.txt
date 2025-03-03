@@ -2339,6 +2339,89 @@ Kế tiếp, sẽ tiến hành nạp “authority” (quyền hạn) vào securi
 
 
 
+##VIII - API Refresh Token (Part 1)##
+
+1.Bài toán:
+Client sử dụng API, và khi access_token hết hạn => server sẽ trả ra mã lỗi 401
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
+
+Code 401 (unauthorized), có nghĩa là không xác thực được người dùng => người dùng không truyền lên access_token, hoặc có truyền lên access_token, nhưng hết hạn.
+
+=> khi nhận code 401, client (frontend) sẽ tự động gọi API refresh_token, sử dụng token này để đổi lấy {access_token, refresh_token} mới.
+
+2. Yêu cầu: tạo endpoint 
+
+GET api/v1/auth/refresh
+
+Response: (trả ra giống hệt như khi login)
+
+{
+    "statusCode": 200,
+    "message": "Get User by refresh token",
+    "data": {
+       "accessToken": "...",
+        "user": {
+            "id": "...",
+            "name": "...",
+            "email": "...",
+          }
+
+    }
+}
+
+
+3. Các bước xử lý
+Tài liệu:
+https://reflectoring.io/spring-boot-cookies/
+
+https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/http/ResponseCookie.html
+
+Server lấy ra refresh_token từ cookies
+
+Server check (verify) để biết refresh_token có hợp lệ hay không ?
+
+Server query database theo refresh_token 
+=> lấy thông tin user 
+=> issue access_token mới
+
+Server trả ra phản hồi (set cookies ứng với refresh_token mới)
+
+
+##IX - API Refresh Token (Part 2)##
+
+//todo
+Server query database theo refresh_token 
+=> lấy thông tin user 
+=> issue access_token mới
+
+Server trả ra phản hồi (set cookies ứng với refresh_token mới)
+
+##X - API Logout##
+
+Yêu cầu: Tạo endpoint
+
+POST api/v1/auth/logout
+
+Truyền lên JWT ở header
+
+Response : 
+{
+    "statusCode": 200,
+    "message": "Logout User",
+    "data": null
+}
+
+Xử lý ở backend:
+Nhờ có spring security, lấy ra email của người dùng
+
+Update refresh_token === null (empty) (tìm theo email)
+
+Remove refresh_token ở cookies (remove cookies)
+https://reflectoring.io/spring-boot-cookies/
+
+Trả về phản hồi cho client : ResponseEntity<Void>
+
+
 
 
 

@@ -6,6 +6,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -17,7 +20,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.stereotype.Service;
+
+import com.nimbusds.jose.util.Base64;
 
 import vn.hoidanit.jobhunter.domain.dto.RestLoginDTO;
 
@@ -42,7 +48,7 @@ public class SecurityUtil {
     @Value("${hoidanit.jwt.refresh-token-validity-in-seconds}")
     private long refreshTokenExpiration;
 
-    public String createAccessToken(Authentication authentication, RestLoginDTO.UserDTO userDTO) {
+    public String createAccessToken(String email, RestLoginDTO.User user) {
         Instant now = Instant.now();// thời gian tạo
         Instant validity = now.plus(this.accessTokenExpiration, ChronoUnit.SECONDS);// thời gian hết hạn now + 1 ngày
 
@@ -54,8 +60,8 @@ public class SecurityUtil {
         JwtClaimsSet claims = JwtClaimsSet.builder()
             .issuedAt(now)
             .expiresAt(validity)
-            .subject(authentication.getName())//định danh người dùng là ai ở đây thì dùng với email
-            .claim("user", userDTO)//chỉ những thành pần biểu diễn cái object
+            .subject(email)//định danh người dùng là ai ở đây thì dùng với email
+            .claim("user", user)//chỉ những thành pần biểu diễn cái object
             .claim("permission", listAuthority)
             .build();
 
@@ -77,7 +83,7 @@ public class SecurityUtil {
             .issuedAt(now)
             .expiresAt(validity)
             .subject(email)
-            .claim("user", restLoginDTO.getUserDTO())
+            .claim("user", restLoginDTO.getUser())
             .claim("permission", listAuthority)
             .build();
 
@@ -107,6 +113,21 @@ public class SecurityUtil {
             return s;
         }
         return null;
+    }
+
+    private SecretKey getSecretKey() {
+        byte[] keyBytes = Base64.from(jwtKey).decode();
+        return new SecretKeySpec(keyBytes, 0, keyBytes.length, SecurityUtil.JWT_ALGORITHM.getName());
+    }
+
+    public Jwt checkValidRefreshToken(String token) {
+        NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withSecretKey(getSecretKey()).macAlgorithm(SecurityUtil.JWT_ALGORITHM).build();
+        try {
+            return jwtDecoder.decode(token);
+        } catch (Exception e) {
+            System.out.println("refresh error: " + e.getMessage());
+            throw e;
+        }
     }
 
     /**
