@@ -23,6 +23,7 @@ import vn.hoidanit.jobhunter.domain.response.ResCreateUserDTO;
 import vn.hoidanit.jobhunter.domain.response.ResUpdateUserDTO;
 import vn.hoidanit.jobhunter.domain.response.ResUserDTO;
 import vn.hoidanit.jobhunter.service.UserService;
+import vn.hoidanit.jobhunter.util.annotation.ApiMessage;
 import vn.hoidanit.jobhunter.util.exception.IdInvalidException;
 
 @RestController
@@ -38,6 +39,7 @@ public class UserController {
     }
 
     @GetMapping("/users/{id}")
+    @ApiMessage("Get a user")
     public ResponseEntity<ResUserDTO> getUser(@PathVariable("id") Long id) throws IdInvalidException {
         if (this.userService.fetchUserById(id) == null) {
             throw new IdInvalidException("Id user: " + id + " not found");
@@ -48,11 +50,13 @@ public class UserController {
     }
 
     @GetMapping("/users")
+    @ApiMessage("Fetch all users")
     public ResponseEntity<ResultPaginationDTO> getUsers(@Filter Specification<User> spec, Pageable pageable) {
         return ResponseEntity.status(HttpStatus.OK).body(this.userService.fetchUsers(spec, pageable));
     }
 
     @PostMapping("/users")
+    @ApiMessage("Create a user")
     public ResponseEntity<ResCreateUserDTO> createUser(@Valid @RequestBody User userJson) throws IdInvalidException {
         if (this.userService.checkExistedEmail(userJson.getEmail())) {
             throw new IdInvalidException(userJson.getEmail() + "was Existed email");
@@ -63,6 +67,7 @@ public class UserController {
     }
 
     @DeleteMapping("/users/{id}")
+    @ApiMessage("Delete a user")
     public ResponseEntity<Void> deleteUserById(@PathVariable("id") long id) throws IdInvalidException {
         if (this.userService.fetchUserById(id) == null) {
             throw new IdInvalidException("Id user: " + id + " not found");
@@ -73,18 +78,19 @@ public class UserController {
     }
 
     @PutMapping("/users")
+    @ApiMessage("Update a user")
     public ResponseEntity<ResUpdateUserDTO> updateUser(@RequestBody User userJson) throws IdInvalidException {
-        if (this.userService.checkExistedEmail(userJson.getEmail())) {
-            throw new IdInvalidException(userJson.getEmail() + "was Existed email");
-        }
         User user = this.userService.fetchUserById(userJson.getId());
-        if (user != null) {
-            user.setEmail(userJson.getEmail());
-            user.setName(userJson.getName());
-            user.setPassword(userJson.getPassword());
 
-            user = this.userService.saveUser(user);
+        if (user == null) {
+            throw new IdInvalidException("Id user: " + userJson.getId() + " not found");
         }
+        if (!userJson.getEmail().equals(userJson.getEmail())) {
+            if (this.userService.checkExistedEmail(userJson.getEmail())) {
+                throw new IdInvalidException(userJson.getEmail() + "was Existed email");
+            }
+        }
+        user = this.userService.updateUser(userJson);
         return ResponseEntity.ok(this.userService.convertToResUpdateUserDTO(user));
 
     }

@@ -2563,7 +2563,7 @@ Demo tính năng khi access token (test = cách setup tại backend) ( x-no-retr
 ====Chapter 11: Modules Job/Resume====
 Bài tập thực hành tạo module Job/Resume: CRUD job/resume, kết hợp việc sử dụng upload/download file với Java Spring
 
-##I - Code Refactoring
+##I - Code Refactoring##
 
 Tổ chức lại thư mục domain và service
 Chia thành request/response
@@ -2608,6 +2608,199 @@ List<User> users;
 https://www.baeldung.com/hibernate-lazy-eager-loading
 
 https://stackoverflow.com/questions/2990799/difference-between-fetchtype-lazy-and-eager-in-java-persistence-api
+
+Khác với Spring MVC thì ở đây ngoài việc xét ràng buộc của các Model -> làm thêm cách fetch data
+Ví dụ model University {có List<Student>} -> lượng Student này rất lớn 
+- Lazy: khi nào query trường university + yêu cầu query trường List đó thì nó mới Fetch lên
+- Eage: khi nào query trường university -> nó sẽ tự động query List đó luôn (query all trong trường đó)
+
+-> để tối ưu hóa thì khi nào chúng ta cần thì mới lên lấy các thông tin có lượng dữ liệu lớn khi query đến trường nào đó 
+đối với dự án này -> sẽ set Lazy cho List<User> ở company
+
+
+##III - Bài Tập Update Model User/Company##
+Yêu cầu 1: Tạo user, kèm thêm thông tin của công ty
+POST http://localhost:8080/api/v1/users
+{
+    "name" : "Hỏi Dân IT",
+    "email": "hoidanit@gmail.com2",
+    "password": "123456",
+    "gender": "MALE",
+    "address": "ha noi",
+    "age": 25,
+    "company": {
+        "id": 17
+    }
+}
+
+sửa lại UserService 2 th:
+- khi tạo user có gửi thêm id của công ty: tìm công ty theo id -> gán công ty vào user, nếu ko tìm thấy gán = null
+- ko gửi thêm tên của công ty (null)
+
+//logic xử lý tại backend, nếu truyền thêm company, cần check xem company đấy có tồn tại hay không (check theo id)
+Nếu công ty tồn tại => set data company cho user
+Nếu công ty không tồn tại => set data = null
+
+Yêu cầu 2: thêm thông tin company khi thao tác với user
+//khi update use
+
+//khi fetch user by id
+//khi fetch all user
+
+Yêu cầu 3: khi xóa công ty, cần xóa user thuộc công ty, rồi mới xóa công ty
+
+//trong thực tế, có thể thêm 1 fields là active = true/false (chứ không xóa hết data)
+
+Yêu cầu 4: khi fetch công ty, sẽ ignore (bỏ đi thuộc tính user)
+//tránh lặp vô hạn: tức là mỗi lần lấy công ty -> lấy list user mà khi lấy user nó lại -> lấy ra công ty ...
+-> dùng @JsonIgnore Khi dùng annotation này: ở frontend khi gửi thông tin company + list user(pần này sẽ bị bỏ k care), ở backend trước khi trả thông tin company cho người dùng cũng ko trả thông tin của list user
+
+
+##IV - Model Job##
+
+1.Tạo model Job
+
+Table jobs:			
+	id		long	
+	name		String	
+	location	String	
+	salary		double	
+	quantity	int	
+	level		String	FRESHER/JUNIOR… => sử dụng enum (tương tự gender)
+	description	String	longText
+	startDate	Date	
+	endDate		Date	
+	isActive	boolean	
+	createdAt	Date	
+	updatedAt	Date	
+	createdBy	String	
+	updatedBy	String	
+	company_id	long (mapping relationship)	
+skills	Array	(mapping relationship)
+
+//level : INTERN, FRESHER, MIDDLE, SENIOR
+
+Table skills:
+	id 	long
+	name	String 
+	createdAt	Date	
+	updatedAt	Date	
+	createdBy	String	
+	updatedBy	String	
+
+2. Định nghĩa relationship
+Quan hệ giữa Company - Job:
+1 công ty có thể đăng tuyển nhiều jobs ( 1 - N )
+1 job chỉ thuộc 1 công ty ( 1 - 1)
+
+=> mối quan hệ giữa Company và Job là 1 - N
+//company
+@OneToMany(mappedBy = "company", fetch = FetchType.LAZY)
+@JsonIgnore
+List<Job> jobs;
+
+//job
+@ManyToOne
+@JoinColumn(name = "company_id")
+private Company company;
+
+Quan hệ giữa Job - Skill:
+1 job có nhiều kỹ năng (skill) ( 1 - N )
+1 skill có thể thuộc nhiều job khác nhau ( 1 - N)
+
+=>  mối quan hệ giữa Job và Skill là N-N
+//job
+@ManyToMany(fetch = FetchType.LAZY)
+@JsonIgnore
+@JoinTable(name = "job_skill", joinColumns = @JoinColumn(name = "job_id"), inverseJoinColumns = @JoinColumn(name = "skill_id"))
+private List<Skill> skills;
+
+//skill
+@ManyToMany(fetch = FetchType.LAZY, mappedBy = "skills")
+@JsonIgnore
+private List<Job> jobs;
+
+việc thiết lập JoinTable hay mappedBy có thể thực hiện ngược lại (quan hệ nhiều nhiều thì nó có qan hệ 2 chiều)
+-> sau khi thiết lập sẽ tự động tạo 1 bảng mới chỉ có 2 thuộc tính là job_id và skill_id
+
+##V -  CRUD Job##
+
+//rename isActive => active (table job)
+@ManyToMany(fetch = FetchType.LAZY)
+@JsonIgnoreProperties(value = { "jobs" })
+private List<Skill> skills;
+
+@JsonIgnoreProperties(value = { "jobs" }) dùng annotation này -> sẽ tránh được trường hợp lặp vô hạn + nhưng vẫn lấy được thuốc tính của Skills: tức là nếu dùng @JsonIgnore nó sẽ ở frontend truyền vào sẽ được bỏ qa, backend sẽ ko lấy cái này từ db truyền lên view, còn dùng JsonIgnoreProperties là chỉ bỏ 1 trường trong 1 model tức là vẫn lấy được skill nhưng ko lấy trường jobs trong skill đó -> tránh vòng lặp vô hạn khi lấy skills nó lại lấy list Jobs (mà trong Jobs nó lại lấy list Skills)
+
+
+
+1. CRUD Skills
+
+//Create a skill : tên skill là duy nhất và không được để trống
+Body: truyền name
+{  "name" : "JAVA" }
+
+//update a skill : tên skill là duy nhất và không được để trống
+Body: truyền name và id  
+
+Với tính năng xóa skill, các bạn làm sau cùng nhé.
+Làm thêm/sửa/get skills (bước 1)
+Làm thêm/sửa/xóa/get job (bước 2)
+
+Rồi hãy làm xóa skill (vì khi đấy đã đủ data và có ràng buộc về quan hệ) 
+
+//delete a skill (không cần làm, vì khi delete job (owner side) sẽ tự động xóa trong job_skill
+//bạn nào muốn làm, thì cần test 2 trường hợp:
+Trường hợp 1: chưa có dữ liệu của job
+Trường hợp 2: đã có dữ liệu của job (tức là table job_skill có dữ liệu của skill muốn xóa)
+khi xóa skill: 
+vì thiết lập mối quan hệ 2 chiều (N-N) giữa job và skill và bên job mình có định nghĩa @JoinTable -> Job là cha 
+
+thì khi job là cha thì mỗi lần xóa Job Orm sẽ tự động xóa những dữ liệu liên qan đến job đó trong table job_skill nhưng khi xóa skill (con) thì nó sẽ ko làm mà mìh pải tự làm -> đầu tiên pải xóa hết job có liên qan đến skill đó trong table job_skill sau đó mới xóa skill đó được 
+
+//fetch all skills with pagination
+
+
+
+2. CRUD Job
+
+//create a job
+Tạo DTO để get list skills và trả ra phản hồi tương ứng
+//cần check skills trước khi lưu
+//data mẫu
+{
+	"name": "Dev Java",
+	"location": "Hà Nội",
+	"salary": "10000000",
+	"quantity": 10,
+	"level": "JUNIOR",
+	"description": "BLA BLA",
+	"startDate": "2024-05-04T13:55:58.454607Z",
+	"endDate": "2024-05-04T13:55:58.454607Z",
+	"active": true,
+	"skills": [
+		{
+			"id": 500
+		},
+		{
+			"id": 3
+		}
+	]
+}
+
+
+
+//update a job
+
+//delete a job
+
+//fetch all job with pagination
+
+//get a job by id
+
+
+
+
 
 
 

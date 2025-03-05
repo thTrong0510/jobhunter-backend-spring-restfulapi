@@ -33,6 +33,7 @@ public class CompanyCotroller {
     }
 
     @PostMapping("/companies")
+    @ApiMessage("Create a company")
     public ResponseEntity<Company> createCompany(@Valid @RequestBody Company companyJson) {
         return ResponseEntity.status(HttpStatus.CREATED).body(this.companyService.saveCompany(companyJson));
     }
@@ -44,14 +45,16 @@ public class CompanyCotroller {
     }
 
     @PutMapping("/companies")
+    @ApiMessage("Update a company")
     public ResponseEntity<Company> getCompanies(@Valid @RequestBody Company company) {
         return ResponseEntity.ok(this.companyService.saveCompany(company));
     }
 
     @DeleteMapping("/companies/{id}")
+    @ApiMessage("Delete a company")
     public ResponseEntity<Void> deleteCompany(@PathVariable("id") long id) throws IdInvalidException {
-        if (id > 100) {
-            throw new IdInvalidException("Invalid Id");
+        if (this.companyService.fetchCompanyById(id) == null) {
+            throw new IdInvalidException("Id user: " + id + " not found");
         }
         this.companyService.deleteCompanyById(id);
         return ResponseEntity.ok(null);

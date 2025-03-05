@@ -2,12 +2,16 @@ package vn.hoidanit.jobhunter.domain.response;
 
 import java.time.Instant;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import vn.hoidanit.jobhunter.util.constant.GenderEnum;
 
 @Setter
 @Getter
+@AllArgsConstructor
+@NoArgsConstructor
 public class ResUpdateUserDTO {
     private long id;
     private String name;
@@ -15,17 +19,15 @@ public class ResUpdateUserDTO {
     private int age;
     private GenderEnum gender;
     private String address;
-    Instant createdAt;
+    private Instant createdAt;
+    private CompanyUser company;
 
-    public ResUpdateUserDTO(long id, String name, String email, int age, GenderEnum gender, String address,
-            Instant createdAt) {
-        this.id = id;
-        this.name = name;
-        this.email = email;
-        this.age = age;
-        this.gender = gender;
-        this.address = address;
-        this.createdAt = createdAt;
+    @Setter
+    @Getter
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class CompanyUser {
+        private long id;
+        private String name;
     }
-
 }

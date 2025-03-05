@@ -1,6 +1,7 @@
 package vn.hoidanit.jobhunter.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,10 +20,11 @@ public interface CompanyRepository extends JpaRepository<Company, Long>, JpaSpec
 
     void deleteById(long id);
 
+    Optional<Company> findById(long id);
+
     Page<Company> findAll(Pageable pageable);
 
     List<Company> findAll(Specification<Company> specification);
 
     Page<Company> findAll(Specification<Company> specification, Pageable pageable);
-
 }
