@@ -44,6 +44,15 @@ public class CompanyCotroller {
         return ResponseEntity.ok(this.companyService.fetchCompanies(spec, pageable));
     }
 
+    @GetMapping("/companies/{id}")
+    @ApiMessage("fetch a company by id")
+    public ResponseEntity<Company> getCompany(@PathVariable("id") long id) throws IdInvalidException {
+        if (!this.companyService.fetchCompanyById(id).isPresent()) {
+            throw new IdInvalidException("Company with id: " + id + " is not existed");
+        }
+        return ResponseEntity.ok(this.companyService.fetchCompanyById(id).get());
+    }
+
     @PutMapping("/companies")
     @ApiMessage("Update a company")
     public ResponseEntity<Company> getCompanies(@Valid @RequestBody Company company) {

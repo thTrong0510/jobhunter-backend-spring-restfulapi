@@ -1,6 +1,8 @@
 package vn.hoidanit.jobhunter.util;
 
 import org.springframework.core.MethodParameter;
+import org.springframework.core.io.InputStreamSource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -26,9 +28,17 @@ public class FormatRestResponse implements ResponseBodyAdvice<Object> {
 
     @Override
     @Nullable
-    public Object beforeBodyWrite(@Nullable Object body, MethodParameter returnType, MediaType selectedContentType,
-            Class selectedConverterType, ServerHttpRequest request, ServerHttpResponse response) {
-        // TODO Auto-generated method stub
+    public Object beforeBodyWrite(
+            @Nullable Object body, // chứa dữ liệu mà ta muốn trả về
+            MethodParameter returnType,
+            MediaType selectedContentType,
+            Class selectedConverterType,
+            ServerHttpRequest request,
+            ServerHttpResponse response // chứa các thông tin phản hồi như status code
+    ) {
+
+        // ServerHttpResponse response: với kiểu dữ liệu này ko lấy ra được mã phản hồi
+        // -> ép kiểu sang HttpServletResponse
         HttpServletResponse servletResponse = ((ServletServerHttpResponse) response).getServletResponse();
         int status = servletResponse.getStatus();
 
@@ -36,8 +46,8 @@ public class FormatRestResponse implements ResponseBodyAdvice<Object> {
                                                                        // về 1 chuỗi string maybe bị lỗi
         restResponse.setStatusCode(status);
 
-        // cách fix bugs cũ -> chuyển sang dùng RestLoginDTO để fix rồirồi
-        if (body instanceof String) {
+        // cách fix bugs cũ -> chuyển sang dùng ResLoginDTO để fix rồirồi
+        if (body instanceof String || body instanceof InputStreamSource) {
             return body;
         }
 

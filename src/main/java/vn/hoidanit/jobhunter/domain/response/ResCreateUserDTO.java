@@ -19,14 +19,24 @@ public class ResCreateUserDTO {
     private int age;
     private GenderEnum gender;
     private String address;
-    Instant createdAt;
+    private Instant createdAt;
     private CompanyUser company;
+    private RoleUser role;
 
     @Setter
     @Getter
     @AllArgsConstructor
     @NoArgsConstructor
     public static class CompanyUser {
+        private long id;
+        private String name;
+    }
+
+    @Setter
+    @Getter
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class RoleUser {
         private long id;
         private String name;
     }

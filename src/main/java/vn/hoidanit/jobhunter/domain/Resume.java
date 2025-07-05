@@ -1,80 +1,59 @@
 package vn.hoidanit.jobhunter.domain;
 
 import java.time.Instant;
-import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-// import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
 import vn.hoidanit.jobhunter.util.SecurityUtil;
-import vn.hoidanit.jobhunter.util.constant.LevelEnum;
+import vn.hoidanit.jobhunter.util.constant.ResumeStateEnum;
 
 @Entity
-@Table(name = "jobs")
-@Setter
+@Table(name = "resumes")
 @Getter
-public class Job {
-
+@Setter
+public class Resume {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
 
-    private String name;
-    private String location;
-    private String salary;
-    private String quantity;
+    @NotBlank(message = "Email can not be blank")
+    private String email;
+
+    @NotBlank(message = "Url can not be blank")
+    private String url;
 
     @Enumerated(EnumType.STRING)
-    private LevelEnum level;
+    private ResumeStateEnum status;
 
-    @Column(columnDefinition = "MEDIUMTEXT")
-    private String description;
-
-    private Instant startDay;
-    private Instant endDay;
-
-    private boolean active;
-
-    // @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss a", timezone = "GTM+7")
     private Instant createdAt;
-
-    // @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss a", timezone = "GTM+7")
     private Instant updatedAt;
 
     private String createdBy;
     private String updatedBy;
 
     @ManyToOne
-    @JoinColumn(name = "company_id")
-    private Company company;
-
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JsonIgnoreProperties(value = { "jobs" })
-    @JoinTable(name = "job_skill", joinColumns = @JoinColumn(name = "job_id"), inverseJoinColumns = @JoinColumn(name = "skill_id"))
-    private List<Skill> skills;
-
-    @OneToMany(mappedBy = "job", fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     @JsonIgnore
-    List<Resume> resumes;
+    private User user;
+
+    @ManyToOne
+    @JoinColumn(name = "job_id")
+    @JsonIgnore
+    private Job job;
 
     @PrePersist
     public void beforeSave() {

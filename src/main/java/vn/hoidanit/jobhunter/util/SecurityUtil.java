@@ -25,7 +25,7 @@ import org.springframework.stereotype.Service;
 
 import com.nimbusds.jose.util.Base64;
 
-import vn.hoidanit.jobhunter.domain.response.RestLoginDTO;
+import vn.hoidanit.jobhunter.domain.response.ResLoginDTO;
 
 @Service
 public class SecurityUtil {
@@ -48,7 +48,12 @@ public class SecurityUtil {
     @Value("${hoidanit.jwt.refresh-token-validity-in-seconds}")
     private long refreshTokenExpiration;
 
-    public String createAccessToken(String email, RestLoginDTO.User user) {
+    public String createAccessToken(String email, ResLoginDTO dto) {
+        ResLoginDTO.UserInsideToken userToken = new ResLoginDTO.UserInsideToken(
+                dto.getUser().getId(),
+                dto.getUser().getEmail(),
+                dto.getUser().getName());
+
         Instant now = Instant.now();// thời gian tạo
         Instant validity = now.plus(this.accessTokenExpiration, ChronoUnit.SECONDS);// thời gian hết hạn now + 1 ngày
 
@@ -61,7 +66,7 @@ public class SecurityUtil {
             .issuedAt(now)
             .expiresAt(validity)
             .subject(email)//định danh người dùng là ai ở đây thì dùng với email
-            .claim("user", user)//chỉ những thành pần biểu diễn cái object
+            .claim("user", userToken)//chỉ những thành pần biểu diễn cái object
             .claim("permission", listAuthority)
             .build();
 
@@ -69,7 +74,11 @@ public class SecurityUtil {
         return this.jwtEncoder.encode(JwtEncoderParameters.from(jwsHeader, claims)).getTokenValue(); //return String
     }
 
-    public String createRefreshToken(String email, RestLoginDTO restLoginDTO) {
+    public String createRefreshToken(String email, ResLoginDTO dto) {
+                ResLoginDTO.UserInsideToken userToken = new ResLoginDTO.UserInsideToken(
+                dto.getUser().getId(),
+                dto.getUser().getEmail(),
+                dto.getUser().getName());
         Instant now = Instant.now();// thời gian tạo
         Instant validity = now.plus(this.refreshTokenExpiration, ChronoUnit.SECONDS);// thời gian hết hạn now + 1 ngày
 
@@ -83,7 +92,7 @@ public class SecurityUtil {
             .issuedAt(now)
             .expiresAt(validity)
             .subject(email)
-            .claim("user", restLoginDTO.getUser())
+            .claim("user", userToken)
             .claim("permission", listAuthority)
             .build();
 

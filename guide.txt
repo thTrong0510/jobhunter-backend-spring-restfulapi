@@ -1,3 +1,7 @@
+Cần làm check lại: 
+    - khi fetch phải đồng bộ optional -> và kiểm tra nó có isPresent hay ko all 
+    - tên các nested class
+
 ===== Chapter 3: Hello World với Spring REST ====
 
 ##1 - Hello World##
@@ -1265,8 +1269,8 @@ các bước cơ bản: lấy được phần authentication -> tạo token (hea
 sau đó quay lại AuthController.java chỉnh sửa ResponseEntity -> để ko gửi ra thông tin người dùng mà gửi về token cho người dùng 
 
 Fix lỗi: khi @PostMapping("/login")
-    public ResponseEntity<String> login -> trả về .body(chuỗi) mà bên phần format response RestResponse<Object> restResponse = new RestResponse<Object>(); đang yêu cầu 1 object maybe nó sẽ bị lỗi -> tạo thêm 1 RestLoginDTO.java làm Object lưu chuỗi token và chỉnh sửa lại:
-	public ResponseEntity<RestLoginDTO> login -> return .body(RestLoginDTO)
+    public ResponseEntity<String> login -> trả về .body(chuỗi) mà bên phần format response RestResponse<Object> restResponse = new RestResponse<Object>(); đang yêu cầu 1 object maybe nó sẽ bị lỗi -> tạo thêm 1 ResLoginDTO.java làm Object lưu chuỗi token và chỉnh sửa lại:
+	public ResponseEntity<ResLoginDTO> login -> return .body(ResLoginDTO)
 
 cách fix cũ:
 if (body instanceof String) {
@@ -2797,6 +2801,336 @@ Tạo DTO để get list skills và trả ra phản hồi tương ứng
 //fetch all job with pagination
 
 //get a job by id
+
+##VI - Về Upload File##
+Tham khảo:
+https://spring.io/guides/gs/uploading-files
+
+1.Có bao nhiêu cách để upload file (Storage)
+Sử dụng dịch vụ : AWS S3 -> tốn pí
+Lưu vào database (Blob): lưu trực tiếp vào database -> nhưng ko thể search ~ tốc độ đọc ghi chậm 
+Lưu file vào server
+
+2.Các khái niệm hay dùng:
+
+MultipartFile
+https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/web/multipart/MultipartFile.html
+
+//tượng trưng cho file gửi từ client lên server
+//thay vì gửi text, chúng ta sử dụng binary
+
+Path
+https://docs.oracle.com/javase/8/docs/api/java/nio/file/Path.html
+
+//tượng trưng cho địa chỉ lưu trữ file trên máy tính của bạn
+
+
+##VII - Read File From Path##
+
+folder lưu file sẽ ko đặt trong folder chứa source code để tránh việc khi chạy ở chế độ production (như sử dụng docker) -> ko backup được
+
+-> làm sao để truy cập được các loại file từ đường link localhost (việc lưu trữ file là của Backend việc truy cập là việc cho pép frontend có khả năng truy cập nó )
+
+1. Cấu hình path
+Phân loại path: https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats#traditional-dos-paths
+
+Lưu ý: về phần cấu hình, lưu ý check dấu cách (empty space)
+
+//cấu hình base path (set up env), sử dụng absolute path cấu hình ở đây để nó không pải phụ thuộc vào loại máy (server chạy nó)
+application.properties
+
+Sử dụng câu lệnh để in ra path: pwd
+//với windows, lưu ý chuyển \ thành /
+D:\1.Udemy\Backend\4. Java Spring Restful\upload
+=> được chuyển thành
+D:/1.Udemy/Backend/4. Java Spring Restful/upload
+
+Ví dụ:
+hoidanit.upload-file.base-path=D:/1.Udemy/Backend/4. Java Spring Restful/upload/
+
+2. Test access from localhost
+
+Link download test file:
+https://drive.google.com/drive/folders/1RmO4JdjpUPyCAO1HWQEANe486ExHh5Wg?usp=sharing
+
+
+//cấu hình Spring
+Đặt tên link là: localhost:8080/storage/file_name
+
+//lưu ý về security
+
+
+//StaticResourcesWebConfiguration.java
+@Configuration
+public class StaticResourcesWebConfiguration
+        implements WebMvcConfigurer {
+
+    @Value("${hoidanit.upload-file.base-path}")
+    private String basePath;
+
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/storage/**")
+                .addResourceLocations(basePath);
+    }
+}
+
+
+3. Security concern
+
+Chỉ cho phép đọc file tại 1 nơi cố định 
+Chỉ cho phép đọc file type nhất định
+
+
+##VIII. Upload File##
+
+Tạo API upload single file :
+POST   http://localhost:8080/api/v1/files
+
+Bước 1: Frontend gửi lên file và tên folder lưu trữ (Sử dụng form-data thay vì json)
+file: file cần upload
+folder: tên thư mục upload, phân theo từng tính năng
+
+Bước 2: Backend lấy thông tin gửi lên
+@PostMapping("/files")
+public String upload(
+    @RequestParam("file") MultipartFile file,
+    @RequestParam("folder") String folder
+) 
+
+Tham khảo:
+https://spring.io/guides/gs/uploading-files
+https://www.bezkoder.com/spring-boot-file-upload/
+
+Bước 3: create a folder if not exists
+https://stackoverflow.com/a/53252034
+
+ public void createUploadFolder(String folder) throws URISyntaxException {
+        URI uri = new URI(folder);
+        Path path = Paths.get(uri);
+        File tmpDir = new File(path.toString());
+        if (!tmpDir.isDirectory()) {
+            try {
+                Files.createDirectory(tmpDir.toPath());
+                System.out.println(">>> CREATE NEW DIRECTORY SUCCESSFUL, PATH = " + folder);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        } else {
+            System.out.println(">>> SKIP MAKING DIRECTORY, ALREADY EXISTS");
+        }
+    }
+
+
+
+Bước 4: save file to folder
+
+public void store(MultipartFile file, String folder) throws URISyntaxException, IOException {
+       // create unique filename
+        String finalName = System.currentTimeMillis() + "-" + file.getOriginalFilename();
+
+        URI uri = new URI(basePath + folder + "/" + finalName);
+        Path path = Paths.get(uri);
+        try (InputStream inputStream = file.getInputStream()) {
+            Files.copy(inputStream, path,
+                    StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+Bước 5: trả về phản hồi với file name
+fileName: uploaded-file-name
+
+Bước 6: validate file upload
+File is empty
+
+File extensions
+
+File size (max = 5MB)
+
+    
+    String fileName = file.getOriginalFilename();
+        List<String> allowedExtensions = Arrays.asList("pdf", "jpg", "jpeg", "png", "doc", "docx");
+        List<String> allowedMimeTypes = Arrays.asList(
+            "application/pdf", 
+            "image/jpeg", 
+            "image/png", 
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        );
+
+        // Validate extension
+        boolean isValidExtension = allowedExtensions.stream().anyMatch(ext -> fileName.toLowerCase().endsWith("." + ext));
+        if (!isValidExtension) {
+            return ResponseEntity.badRequest().body("Invalid file type based on extension.");
+        }
+
+        // Validate MIME type
+        String contentType = file.getContentType();
+        if (!allowedMimeTypes.contains(contentType)) {
+            return ResponseEntity.badRequest().body("Invalid file type based on MIME type.");
+        }
+
+        // Check file size
+        long maxSize = 5 * 1024 * 1024; // 5 MB in bytes
+        if (file.getSize() > maxSize) {
+	//todo
+        }
+
+##IX - Download a File (Extra)##
+Tham khảo: https://stackoverflow.com/questions/35680932/download-a-file-from-spring-boot-rest-service
+
+##X - Model Resume##
+
+id	long
+email	String
+url	String
+status: enum// PENDING-REVIEWING-APPROVED-REJECTED
+createdAt	Date
+updatedAt	Date
+createdBy	String
+updatedBy	String
+user_id	
+job_id	
+
+//
+Xác định mối quan hệ:
+
+User - resume : 1 - N
+
+Job - resume : 1 - N
+
+##XI - Test giao diện Frontend (Part 1)##
+
+//fetch company by id
+
+//allow public access
+@PreAuthorize("permitAll()") ??? dùng Annotation này trang trí cho 1 controller để khỏi cần đăng nhập nhưng vẫn gọi được API: là ko được vì nó sẽ chạy vào filter chain trước khi nó chạy vào controller -> nếu ko khai báo url trong filter chain nó vẫn 
+
+//check api first
+
+//quy định thư mục upload
+company: chứa logo công ty
+resume: chứa cv ứng viên gửi lên
+user: chứa avatar user
+
+
+==== Chapter 12: Modules Permission & Role ====
+Bài tập thực hành tạo module Permission/roles : CRUD Permissions/role, kết hợp áp dụng Spring  Life Cycle để tạo fake data cho dự án Backend.
+
+## I -  Model Permission & Roles ##
+
+permissions		
+	id	long
+	name	String
+	apiPath	String
+	method	String
+	module	String
+	createdAt	Date
+	updatedAt	Date
+	createdBy	String
+	updatedBy	String
+
+roles		
+	id	long
+	name	String
+	description	String
+	active	boolean
+	createdAt	Date
+	createdBy	String
+	updatedAt	Date
+	updatedBy	String
+	permissions	Array
+
+//xác định mối quan hệ giữa Permissions (quyền hạn) và Roles (vai trò)
+1 Roles (Vai trò) có nhiều Permissions (quyền hạn)
+
+1 quyền hạn có thể thuộc nhiều role 
+
+=> N Roles - N Permissions => cần join_table (tương tự jobs-skills)
+
+## Update User với Permissions & Roles ##
+1.Cập nhật mối quan hệ giữa User và Role
+//user.java
+@ManyToOne
+@JoinColumn(name = "role_id")
+private Role role;
+
+//role.java
+@OneToMany(mappedBy = "role", fetch = FetchType.LAZY)
+@JsonIgnore
+List<User> users;
+
+2. Update API Users
+//update CRUD user với Role
+
+//update login thành công (refresh, get account), trả thêm role/permission cho frontend
+
+3. Bổ sung
+//bỏ điều kiện update role by name (vì có thể update permissions, ko update name)
+
+//viết api fetch resume by user: callFetchResumeByUser
+https://github.com/turkraft/springfilter/issues/363
+
+https://github.com/turkraft/springfilter/issues/233#issuecomment-1590045915
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import vn.hoidanit.jobhunter.domain.response.ResCreateUserDTO.RoleUser;
 import vn.hoidanit.jobhunter.util.constant.GenderEnum;
 
 @Setter
@@ -21,12 +22,22 @@ public class ResUpdateUserDTO {
     private String address;
     private Instant createdAt;
     private CompanyUser company;
+    private RoleUser role;
 
     @Setter
     @Getter
     @AllArgsConstructor
     @NoArgsConstructor
     public static class CompanyUser {
+        private long id;
+        private String name;
+    }
+
+    @Setter
+    @Getter
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class RoleUser {
         private long id;
         private String name;
     }

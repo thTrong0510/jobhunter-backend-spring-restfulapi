@@ -41,12 +41,12 @@ public class UserController {
     @GetMapping("/users/{id}")
     @ApiMessage("Get a user")
     public ResponseEntity<ResUserDTO> getUser(@PathVariable("id") Long id) throws IdInvalidException {
-        if (this.userService.fetchUserById(id) == null) {
+        if (this.userService.fetchUserById(id).isPresent()) {
             throw new IdInvalidException("Id user: " + id + " not found");
         }
 
         return ResponseEntity.status(HttpStatus.OK)
-                .body(this.userService.convertToResUserDTO(this.userService.fetchUserById(id)));
+                .body(this.userService.convertToResUserDTO(this.userService.fetchUserById(id).get()));
     }
 
     @GetMapping("/users")
@@ -80,7 +80,7 @@ public class UserController {
     @PutMapping("/users")
     @ApiMessage("Update a user")
     public ResponseEntity<ResUpdateUserDTO> updateUser(@RequestBody User userJson) throws IdInvalidException {
-        User user = this.userService.fetchUserById(userJson.getId());
+        User user = this.userService.fetchUserById(userJson.getId()).get();
 
         if (user == null) {
             throw new IdInvalidException("Id user: " + userJson.getId() + " not found");

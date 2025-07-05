@@ -6,12 +6,13 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import vn.hoidanit.jobhunter.domain.Role;
 
 @Setter
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class RestLoginDTO {
+public class ResLoginDTO {
     @JsonProperty("access_token")
     private String accessToken;
     private User user;
@@ -24,6 +25,7 @@ public class RestLoginDTO {
         private long id;
         private String email;
         private String name;
+        private Role role;
     }
 
     @Setter
@@ -32,5 +34,15 @@ public class RestLoginDTO {
     @NoArgsConstructor
     public static class UserGetAccount {
         private User user;
+    }
+
+    @Setter
+    @Getter
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class UserInsideToken {
+        private long id;
+        private String email;
+        private String name;
     }
 }
