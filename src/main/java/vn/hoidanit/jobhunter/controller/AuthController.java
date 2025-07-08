@@ -2,12 +2,14 @@ package vn.hoidanit.jobhunter.controller;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import jakarta.validation.Valid;
 import vn.hoidanit.jobhunter.domain.User;
 import vn.hoidanit.jobhunter.domain.request.ReqLoginDTO;
+import vn.hoidanit.jobhunter.domain.response.ResCreateUserDTO;
 import vn.hoidanit.jobhunter.domain.response.ResLoginDTO;
 import vn.hoidanit.jobhunter.service.UserService;
 import vn.hoidanit.jobhunter.util.SecurityUtil;
@@ -35,14 +38,28 @@ public class AuthController {
 
     private final UserService userService;
 
+    private final PasswordEncoder passwordEncoder;
+
     @Value("${hoidanit.jwt.refresh-token-validity-in-seconds}")
     private long refreshTokenExpiration;
 
     public AuthController(AuthenticationManagerBuilder authenticationManagerBuilder, SecurityUtil securityUtil,
-            UserService userService) {
+            UserService userService, PasswordEncoder passwordEncoder) {
         this.authenticationManagerBuilder = authenticationManagerBuilder;
         this.securityUtil = securityUtil;
         this.userService = userService;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    @PostMapping("/auth/register")
+    public ResponseEntity<ResCreateUserDTO> register(@Valid @RequestBody User user) throws IdInvalidException {
+        if (this.userService.checkExistedEmail(user.getEmail())) {
+            throw new IdInvalidException("User with email: " + user.getEmail() + " is exist");
+        }
+
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        User userDB = this.userService.saveUser(user);
+        return ResponseEntity.status(HttpStatus.CREATED).body(this.userService.convertToResCreateUserDTO(userDB));
     }
 
     @PostMapping("/auth/login")
@@ -59,7 +76,7 @@ public class AuthController {
         // create access token
         ResLoginDTO ResLoginDTO = new ResLoginDTO();
 
-        User user = this.userService.fetchUserByEmail(loginDTO.getUsername());
+        User user = this.userService.fetchUserByEmail(loginDTO.getUsername()).get();
         ResLoginDTO.setUser(new ResLoginDTO.User(user.getId(), user.getEmail(), user.getName(), user.getRole()));
 
         ResLoginDTO
@@ -85,7 +102,7 @@ public class AuthController {
     @ApiMessage("Fetch the account of current user ")
     public ResponseEntity<ResLoginDTO.UserGetAccount> fetchAccount() {
         User user = this.userService.fetchUserByEmail(
-                SecurityUtil.getCurrentUserLogin().isPresent() ? SecurityUtil.getCurrentUserLogin().get() : null);
+                SecurityUtil.getCurrentUserLogin().isPresent() ? SecurityUtil.getCurrentUserLogin().get() : null).get();
         ResLoginDTO ResLoginDTO = new ResLoginDTO();
         ResLoginDTO.UserGetAccount userGetAccount = new ResLoginDTO.UserGetAccount();
         if (user != null) {
@@ -137,7 +154,7 @@ public class AuthController {
         return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, responseCookie.toString()).body(ResLoginDTO);
     }
 
-    @GetMapping("/auth/logout")
+    @PostMapping("/auth/logout")
     @ApiMessage("Logout User")
     public ResponseEntity<Void> logout(@CookieValue(name = "refresh_token", defaultValue = "none") String refreshToken)
             throws IdInvalidException {

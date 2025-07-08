@@ -51,7 +51,10 @@ public class PermissionController {
         }
 
         if (this.permissionService.isPermissionExist(permission)) {
-            throw new IdInvalidException("Permission is existed");
+            if (this.permissionService.isSameName(permission)) {
+                throw new IdInvalidException("Permission is existed");
+
+            }
         }
 
         return ResponseEntity.ok().body(this.permissionService.updatePermission(permission));

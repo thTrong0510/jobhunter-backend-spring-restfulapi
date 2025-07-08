@@ -28,6 +28,10 @@ public class PermissionService {
                 permission.getApiPath(), permission.getMethod());
     }
 
+    public Boolean isSameName(Permission permission) {
+        return this.permissionRepository.existsByName(permission.getName());
+    }
+
     public Optional<Permission> fetchPermissionById(long id) {
         return this.permissionRepository.findById(id);
     }

@@ -48,11 +48,15 @@ public class JobService {
                 currentJob.getLocation(),
                 currentJob.getSalary(), currentJob.getQuantity(), currentJob.getLevel(), currentJob.getStartDay(),
                 currentJob.getEndDay(), currentJob.isActive(),
-                currentJob.getCreatedAt(), currentJob.getCreatedBy(), null);
+                currentJob.getCreatedAt(), currentJob.getCreatedBy(), null, null);
         if (currentJob.getSkills() != null) {
             List<String> nameSkills = currentJob.getSkills().stream().map(skills -> skills.getName())
                     .collect(Collectors.toList());
             resCreateJobDTO.setSkills(nameSkills);
+        }
+
+        if (currentJob.getCompany() != null) {
+            resCreateJobDTO.setCompany(currentJob.getCompany());
         }
 
         return resCreateJobDTO;
@@ -92,7 +96,7 @@ public class JobService {
                 currentJob.getLocation(),
                 currentJob.getSalary(), currentJob.getQuantity(), currentJob.getLevel(), currentJob.getStartDay(),
                 currentJob.getEndDay(), currentJob.isActive(),
-                currentJob.getCreatedAt(), currentJob.getCreatedBy(), null);
+                currentJob.getCreatedAt(), currentJob.getCreatedBy(), null, currentJob.getCompany());
         if (currentJob.getSkills() != null) {
             List<String> nameSkills = currentJob.getSkills().stream().map(skills -> skills.getName())
                     .collect(Collectors.toList());
@@ -123,7 +127,8 @@ public class JobService {
                         item.getSalary(), item.getQuantity(), item.getLevel(), item.getStartDay(),
                         item.getEndDay(), item.isActive(),
                         item.getCreatedAt(), item.getCreatedBy(),
-                        item.getSkills().stream().map(skills -> skills.getName()).collect(Collectors.toList())))
+                        item.getSkills().stream().map(skills -> skills.getName()).collect(Collectors.toList()),
+                        item.getCompany()))
                 .collect(Collectors.toList());
 
         result.setResult(resCreateJobDTOs);

@@ -22,7 +22,7 @@ public class UserDetailsCustom implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = this.userService.fetchUserByEmail(username);
+        User user = this.userService.fetchUserByEmail(username).get();
         if (user == null) {
             throw new UsernameNotFoundException("Username/Password invalid");
         }

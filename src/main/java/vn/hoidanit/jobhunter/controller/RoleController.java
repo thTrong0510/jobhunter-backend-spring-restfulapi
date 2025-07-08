@@ -34,16 +34,16 @@ public class RoleController {
     @PostMapping("/roles")
     @ApiMessage("Create a Role")
     public ResponseEntity<Role> createRole(@Valid @RequestBody Role role) throws IdInvalidException {
-        // check id
-        if (this.roleService.fetchById(role.getId()) == null) {
-            throw new IdInvalidException("Role with id: " + role.getId() + " is existed");
-        }
-
-        // // check name
-        // if (this.roleService.existByName(role.getName())) {
-        // throw new IdInvalidException("Role with name: " + role.getName() + " is
+        // // check id sửa lại khi tạo mới thì ko check id ý kiến cá nhân
+        // if (this.roleService.fetchById(role.getId()) == null) {
+        // throw new IdInvalidException("Role with id: " + role.getId() + " is
         // existed");
         // }
+
+        // check name
+        if (this.roleService.existByName(role.getName())) {
+            throw new IdInvalidException("Role with name: " + role.getName() + " is existed");
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(this.roleService.createRole(role));
     }
 
@@ -70,8 +70,18 @@ public class RoleController {
 
     @GetMapping("/roles")
     @ApiMessage("Fetch roles")
-    public ResponseEntity<ResultPaginationDTO> getPermissions(@Filter Specification<Role> spec,
+    public ResponseEntity<ResultPaginationDTO> getRoles(@Filter Specification<Role> spec,
             Pageable pageable) {
         return ResponseEntity.ok(this.roleService.getRoles(spec, pageable));
+    }
+
+    @GetMapping("/roles/{id}")
+    @ApiMessage("Fetch role by id")
+    public ResponseEntity<Role> getRoleByid(@PathVariable("id") long id) throws IdInvalidException {
+        if (this.roleService.fetchById(id) == null) {
+            throw new IdInvalidException("Role with id: " + id + " is not exist");
+        }
+
+        return ResponseEntity.ok(this.roleService.fetchById(id));
     }
 }

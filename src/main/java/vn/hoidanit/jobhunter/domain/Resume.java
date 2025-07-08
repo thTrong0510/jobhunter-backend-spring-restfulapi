@@ -47,12 +47,10 @@ public class Resume {
 
     @ManyToOne
     @JoinColumn(name = "user_id")
-    @JsonIgnore
     private User user;
 
     @ManyToOne
     @JoinColumn(name = "job_id")
-    @JsonIgnore
     private Job job;
 
     @PrePersist

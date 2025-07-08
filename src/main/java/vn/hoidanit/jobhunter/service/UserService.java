@@ -25,7 +25,7 @@ public interface UserService {
 
     public ResultPaginationDTO fetchUsers(Specification<User> spec, Pageable pageable);
 
-    public User fetchUserByEmail(String email);
+    public Optional<User> fetchUserByEmail(String email);
 
     public Boolean checkExistedEmail(String email);
 

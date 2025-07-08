@@ -1,6 +1,9 @@
 Cần làm check lại: 
     - khi fetch phải đồng bộ optional -> và kiểm tra nó có isPresent hay ko all 
     - tên các nested class
+    - Làm thêm các DTO (thêm DTO cho Resume khi tạo -> vì nếu để nó trả ra User -> lấy all thông tin user mà nếu ko cho trả ra user sẽ bị lỗi vì ko có id)
+    - việc gọi nhiều lần 1 api như getAccount để lấy thông tin và quyền được lặp lại khá nhiều lần 
+    -> có thể viết thêm API ở backend để lưu thông tin vào localStorage Để hạn chế lần gọi API
 
 ===== Chapter 3: Hello World với Spring REST ====
 
@@ -3048,7 +3051,7 @@ roles
 
 => N Roles - N Permissions => cần join_table (tương tự jobs-skills)
 
-## Update User với Permissions & Roles ##
+## II - Update User với Permissions & Roles ##
 1.Cập nhật mối quan hệ giữa User và Role
 //user.java
 @ManyToOne
@@ -3073,118 +3076,162 @@ https://github.com/turkraft/springfilter/issues/363
 
 https://github.com/turkraft/springfilter/issues/233#issuecomment-1590045915
 
+## III - Tạo Fake Data với SQL ##
+1.Bổ sung
+viết api register : /api/v1/auth/register
+//fetch role by id
+//update api update permission
 
+2. Xóa tất cả table
+https://stackoverflow.com/a/3476803
 
+làm thủ công chạy lệnh sql
 
+SET FOREIGN_KEY_CHECKS = 0;
+drop table if exists companies;
+drop table if exists jobs;
+drop table if exists job_skill;
+drop table if exists permission_role;
+drop table if exists permissions;
+drop table if exists resumes;
+drop table if exists roles;
+drop table if exists skills;
+drop table if exists users;
+SET FOREIGN_KEY_CHECKS = 1;
 
+3.Tạo fake data
+Link download file sql (và logo):
+https://drive.google.com/drive/folders/1RmO4JdjpUPyCAO1HWQEANe486ExHh5Wg?usp=drive_link
 
 
+Thứ tự tạo fake data:
+Tạo users
+Tạo companies
+Tạo skills
+Tạo jobs
+Tạo job_skill
 
 
+## IV - Test Giao Diện Frontend (Part 1) ##
+Download dự án frontend: https://drive.google.com/file/d/1WslzVpUgyPmrvN_RXZ7-rAruMFyTb81G/view
+Với file .env.production và .env.development,  các bạn sửa tham số: VITE_ACL_ENABLE=false
+=> Nếu không sửa, khi test giao diện, sẽ không thấy menu chức năng (sidebar bên trái)
 
+## V - Tạo Sample Data ##
+(Part 1)
+Tài liệu: https://docs.spring.io/spring-boot/how-to/data-initialization.html
 
+//quản lý version database với liquibase
+https://www.baeldung.com/liquibase-refactor-schema-of-java-app
 
+//các cách tạo fake data với faker
+https://www.baeldung.com/java-faker
 
+//tạo câu lệnh query database
+//viết code để tạo database (dựa vào life cycle)
 
+(Part 2)
+Tài liệu:
+https://stackoverflow.com/a/41644743
 
+https://docs.spring.io/spring-boot/api/java/org/springframework/boot/CommandLineRunner.html
 
+Ý tưởng: sử dụng interface CommandLineRunner
 
+Bước 1:
+//DatabaseInitializer.java
+public class DatabaseInitializer implements CommandLineRunner {
+     @Override
+    public void run(String... args) throws Exception {
+        // TODO Auto-generated method stub
+        System.out.println("RUN HERE");
+        throw new UnsupportedOperationException("Unimplemented method 'run'");
+    }
+}
 
+Ban đầu khi chỉ mới thêm class này và override lại hàm mặc định của functional interface này thì khi chạy chương trình lên không có gì hết ngay cả RUN HERE cũng không hiển thị
+-> khi nào thi interface này nó chạy -> thực tế là interface này chạy lên khi ứng dụng java nó chạy lên đó cũng là quá trình tạo hay nạp các Bean lên (DJ) -> mình phải biến class này thành 1 cái Bean để biến nó thành 1 thành phần của java Spring
+-> ví dụ thêm Annotation @Service cho class -> thì khi ứng dụng chạy lên nó sẽ tự động được nạp vào IOC hay Java Spring Container -> interface đó sẽ được chạy
 
+Bước 2: init data
+//coding (tham khảo source code cung cấp https://drive.google.com/file/d/1zd_ILvIcj8FFdAwNXOYGK07IhMM_vg74/view)
+Admin thì full quyền: admin@gmail.com
 
+//tạo permissions
 
+//tạo roles, gán full permission cho role
 
+//tạo users, gán role cho user
 
+Bước 3: Xóa table
+SET FOREIGN_KEY_CHECKS = 0;
+drop table if exists permission_role;
+drop table if exists permissions;
+drop table if exists resumes;
+drop table if exists roles;
+drop table if exists users;
+SET FOREIGN_KEY_CHECKS = 1;
 
+Bước 4: Test data
 
+## VI - Test Giao Diện Frontend (Part 2)##
 
-	
+Với file .env.production và .env.development,  các bạn sửa tham số: VITE_ACL_ENABLE=true
 
+//update security
+https://stackoverflow.com/a/74633151
 
+1.Test giao diện Frontend
+Version node.js mình sử dụng là 16.20.0:
+https://nodejs.org/download/release/v16.20.0/
 
+Cài chính xác version để hạn chế tối đa lỗi có thể xảy ra. (nvm)
 
+Kiểm tra đã cài đặt thành công với câu lệnh: node -v
 
+Download dự án frontend https://drive.google.com/file/d/1WslzVpUgyPmrvN_RXZ7-rAruMFyTb81G/view
 
+(đã ứng với branch test-3-final)
 
 
+//bonus 
+tính năng search
+update filter resume. HR chỉ xem được cv của cty HR
 
 
+//Test phân quyền
 
 
+## VII - Cách xử lý phân quyền tại Frontend (Extra)##
 
+Để có thể hide/show giao diện ứng với phân quyền (quyền hạn), frontend sẽ cần biết Role (vai trò) và Permission (quyền hạn) của người dùng đăng nhập.
 
+=> khi login/refresh token/getAccount (F5), backend cần trả ra role và permission cho frontend
 
-	
+Tại giao diện frontend, thực chất là viết if/else để render giao diện
+On/off với tham số: VITE_ACL_ENABLE=true/false
 
+Các keywords để xử lý phân quyền phía frontend:
 
+Lưu trữ quyền hạn mà backend trả về (role/permission) ứng với người dùng đăng nhập. Với source code cung cấp, data được lưu tại redux
 
+Khai báo list permission tại Frontend, file permissions.ts 
+(hoặc viết api fetch tất cả permissions, lưu vào localStorage/IndexedDB)
 
+Viết component access.tsx
 
+Component trên là component cha, bọc ngoài các component con “cần check quyền hạn”
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	
-
-
-
-
-
-
-
-
-
-
-
-
-
+<Access
+         permission={ALL_PERMISSIONS.COMPANIES.UPDATE}
+         hideChildren
+                    >
+                        <EditOutlined
+                                onClick={() => {
+                                setOpenModal(true);
+                                setDataInit(entity);
+                            }}
+                        />
+</Access >
 
 

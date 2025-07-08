@@ -68,4 +68,13 @@ public class JobController {
             Pageable pageable) {
         return ResponseEntity.ok().body(this.jobService.fetchAllJobs(specification, pageable));
     }
+
+    @GetMapping("/jobs/{id}")
+    @ApiMessage("Get all Jobs")
+    public ResponseEntity<Job> getJob(@PathVariable("id") long id) throws IdInvalidException {
+        if (this.jobService.fetchJobByid(id).isEmpty()) {
+            throw new IdInvalidException("Job with id: " + id + " is not exist");
+        }
+        return ResponseEntity.ok().body(this.jobService.fetchJobByid(id).get());
+    }
 }

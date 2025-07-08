@@ -19,6 +19,7 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import vn.hoidanit.jobhunter.util.SecurityUtil;
 
@@ -26,6 +27,7 @@ import vn.hoidanit.jobhunter.util.SecurityUtil;
 @Table(name = "permissions")
 @Setter
 @Getter
+@NoArgsConstructor
 public class Permission {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -50,6 +52,16 @@ public class Permission {
 
     private String createdBy;
     private String updatedBy;
+
+    public Permission(@NotBlank(message = "Name can not be blank") String name,
+            @NotBlank(message = "ApiPath can not be blank") String apiPath,
+            @NotBlank(message = "Method can not be blank") String method,
+            @NotBlank(message = "Module can not be blank") String module) {
+        this.name = name;
+        this.apiPath = apiPath;
+        this.method = method;
+        this.module = module;
+    }
 
     @ManyToMany(fetch = FetchType.LAZY, mappedBy = "permissions")
     @JsonIgnore

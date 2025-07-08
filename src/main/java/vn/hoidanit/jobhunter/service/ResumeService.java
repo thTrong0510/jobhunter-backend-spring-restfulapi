@@ -128,6 +128,7 @@ public class ResumeService {
     public Boolean checkResumeExistByUserAndJob(Resume resume) {
         if (resume.getUser() == null)
             return false;
+
         Optional<User> userOptional = this.userRepository.findById(resume.getUser().getId());
         if (userOptional.isEmpty())
             return false;

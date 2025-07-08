@@ -19,7 +19,6 @@ import vn.hoidanit.jobhunter.domain.response.ResUserDTO;
 import vn.hoidanit.jobhunter.repository.CompanyRepository;
 import vn.hoidanit.jobhunter.repository.RoleRepository;
 import vn.hoidanit.jobhunter.repository.UserRepository;
-import vn.hoidanit.jobhunter.service.RoleService;
 import vn.hoidanit.jobhunter.service.UserService;
 
 @Service
@@ -102,7 +101,7 @@ public class UserServiceImpl implements UserService {
         return result;
     }
 
-    public User fetchUserByEmail(String email) {
+    public Optional<User> fetchUserByEmail(String email) {
         return this.userRepository.findByEmail(email);
     }
 
@@ -161,7 +160,8 @@ public class UserServiceImpl implements UserService {
     }
 
     public void updateRefreshToken(String refreshToken, String email) {
-        User user = this.userRepository.findByEmail(email);
+        User user = this.userRepository.findByEmail(email).isPresent() ? this.userRepository.findByEmail(email).get()
+                : null;
         if (user != null) {
             user.setRefreshToken(refreshToken);
             this.userRepository.save(user);

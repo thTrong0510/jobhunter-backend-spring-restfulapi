@@ -15,6 +15,8 @@ import vn.hoidanit.jobhunter.domain.Role;
 public interface RoleRepository extends JpaRepository<Role, Long>, JpaSpecificationExecutor<Role> {
     Optional<Role> findById(long id);
 
+    Optional<Role> findByName(String name);
+
     Page<Role> findAll(Pageable pageable);
 
     Page<Role> findAll(Specification<Role> spec, Pageable pageable);
