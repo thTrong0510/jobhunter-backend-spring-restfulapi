@@ -3234,4 +3234,116 @@ Component trên là component cha, bọc ngoài các component con “cần chec
                         />
 </Access >
 
+## VIII - Interceptor ##
 
+khái niệm này tương tự như middleware ở đây sẽ can thiệp vào giữa lời gọi request và response 
+
+Tham khảo:
+https://stackoverflow.com/a/40291647
+
+https://www.baeldung.com/spring-mvc-handlerinterceptor
+
+https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html
+
+//get pattern
+https://stackoverflow.com/a/57242149
+
+1. Cách làm
+Mặc định, với 1 lời gọi request từ client gửi lên:
+
+Request => Spring Security (Filter chain) => Controller => Service…
+
+Do chúng ta “không sửa Spring Security” => sẽ can thiệp vào controller
+
+=> can thiệp vào request sau khi đã qua Spring Security và trước khi gọi tới Controller (làm tương tự như FormatRestResponse -> trước khi trả ra kết quả thì format lại)
+
+=> Interceptor
+
+Mô hình:
+
+Request => Spring Security => Interceptor => Controller => Service…
+
+Ý tưởng:
+Mỗi lời gọi request đều kèm theo JWT (access token) => chúng ta biết được ai đang đăng nhập (email) => biết được user đấy có quyền hạn (permissions) gì
+
+Check target controller (url) và permission user có. Nếu tồn tại, cho request đi tiếp, còn ngược lại, ném ra exceptions
+Bước 1: Khai báo interceptor
+//PermissionInterceptor.java
+
+public class PermissionInterceptor implements HandlerInterceptor {
+    @Override
+    public boolean preHandle(
+            HttpServletRequest request,
+            HttpServletResponse response, Object handler)
+            throws Exception {
+
+      String path = (String) request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        String requestURI = request.getRequestURI();
+        String httpMethod = request.getMethod();
+        System.out.println(">>> RUN preHandle");
+        System.out.println(">>> path= " + path);
+        System.out.println(">>> httpMethod= " + httpMethod);
+        System.out.println(">>> requestURI= " + requestURI);
+
+        return true;
+    }
+}
+
+HandlerInterceptor xử lý các hành động trước/sau khi chạy vào controller thông qua 2 hàm cần override nếu muốn sử dụng
+    - preHandle: xử lý trước khi vào controller - hàm này có kiểu dữ liệu trả về Boolean -> true thì đi tiếp qa controller/false thì sẽ dừng chương trình lại ko cho tới controller nữa
+    - postHandle: xử lý sau khi vào controller
+    * ngoài ra còn có sau khi hoàn thành 1 request: sử dụng afterCompletion
+
+khi cấu hình như trên thì chạy chương trình lên vẫn chưa có gì xảy ra vì chưa có cấu hình cho Spring biết cần phải chạy qua Interceptor trước khi vào controller khi gửi 1 request
+
+//Khai báo tại phần config WebMvcConfigurer
+PermissionInterceptorConfiguration.java
+@Configuration
+public class PermissionInterceptorConfiguration implements WebMvcConfigurer {
+    @Bean //mục đích sử dụng Bean ở đây là như DJ mỗi lần chạy ứng dụng nó sẽ tự động tạo class PermissionInterceptor và ném xuống cho addInterceptors sử dụng chứ ko cần new tạo nhiều lần
+    PermissionInterceptor getPermissionInterceptor() {
+        return new PermissionInterceptor();
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        String[] whiteList = {
+                "/", "/api/v1/auth/**", "/storage/**",
+                "/api/v1/companies", "/api/v1/jobs", "/api/v1/skills", "/api/v1/files"
+        };
+        registry.addInterceptor(getPermissionInterceptor())
+                .excludePathPatterns(whiteList);
+    }
+}
+
+Khi cấu hình ở đây thì nhưng API nằm ngoài whiteList khi được gửi request sẽ phải chạy qua interceptor trước khi vào controller
+
+
+Bước 2: Check Permissions
+Mô hình:
+Request => Spring Security => Interceptor => Controller => Service…
+
+Request gửi kèm JWT (access_token) => Spring giải mã token, và lưu thông tin vào Security Context
+
+=> trước khi tới Interceptor, chúng ta đã biết được email của user
+
+=> query user theo email => lấy role => lấy permission của user
+
+## IX - Test Giao Diện Frontend (Part 3) ##
+1. Giải thích về Transactional
+cần dùng @Transactional này cho hàm hoặc class PermissionInterceptor phần này thường hỗ trợ giải quyết các bài toán khi số lượng người dùng lớn
+
+- Kiểu khi 1 món hàng trên sàn thương mại điện tử chỉ còn 1 món mà trong khi đó nhiều người mua cùng lúc ?? thì Transactional nó sẽ hỗ trợ được gói 1 request thành 1 block và mỗi block khi hoàn thành sẽ cập nhật thông tin cho block được tạo ra sau (queue) hoặc nó có thể tham gia vào rollback (khi lỗi xử lý)
+- còn ở bài toán của dự án này thì nếu ko thêm annotation đó vào khi chạy nó sẽ bị lỗi "... no session ..." (session ở đây là 1 piên đăng nhập xuôngs database hay 1 query xuống) vì chương trình chưa đi tới controller nên chưa có session nào xuống database
+    Lỗi cụ thể nằm ở 
+        Role role = user.getRole();
+        List<Permission> permissions = role.getPermissions();
+    mà đối với list permissions trong class Role load lên với kiểu LAZY -> có nghĩa là khi ta lấy role từ User thì trong role đó chưa hề có permissions 
+    -> cần phải query xuống database 1 lần nữa do vậy nếu không có Transactional nó chỉ query xuống 1 lần đầu 
+    khi có Transactional thì khi query lần đầu thì nó sẽ vẫn giữ nguyên cái phiên đăng nhập đó để giúp query lần 2
+
+    Transactional ở đây giúp nói cho Spring biết là hãy quan sát cái hàm/class khi thao tác với interceptor này tạo cho nó 1 phiên đăng nhập để kết nối được xuống database (khi kết thúc thì xóa nó đi)
+        (kiểu đảm bảo 1 hàm/class có thể kết nối xuống database 1 cái bth)  
+
+2. Test giao diện frontend
+    (đã ứng với branch test-3-final)
