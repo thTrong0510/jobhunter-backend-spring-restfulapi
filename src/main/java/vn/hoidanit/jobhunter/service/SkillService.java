@@ -66,10 +66,13 @@ public class SkillService {
 
     public void deleteSkillByid(long id) {
 
+        Skill currentSkill = this.skillRepository.findById(id).get();
+
         // xoa skill lien quan den job
-        this.skillRepository.findById(id).get().getJobs()
-                .forEach(job -> job.getSkills().remove(this.skillRepository.findById(id).get()));
-        ;
+        currentSkill.getJobs().forEach(job -> job.getSkills().remove(currentSkill));
+
+        // delete subscriber (inside subscriber_skill)
+        currentSkill.getSubscribers().forEach(subscriber -> subscriber.getSkills().remove(currentSkill));
 
         // xoa skill
         this.skillRepository.delete(this.skillRepository.findById(id).get());

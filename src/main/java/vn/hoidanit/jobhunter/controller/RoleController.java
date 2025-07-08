@@ -49,7 +49,7 @@ public class RoleController {
 
     @PutMapping("/roles")
     @ApiMessage("Update a role")
-    public ResponseEntity<Role> updateRole(@Valid @RequestBody Role role) throws IdInvalidException {
+    public ResponseEntity<Role> updateRole(@RequestBody Role role) throws IdInvalidException {
         if (this.roleService.fetchById(role.getId()) == null) {
             throw new IdInvalidException("Role with id: " + role.getId() + " is not exist");
         }

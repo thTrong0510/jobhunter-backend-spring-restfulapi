@@ -3347,3 +3347,97 @@ cần dùng @Transactional này cho hàm hoặc class PermissionInterceptor ph�
 
 2. Test giao diện frontend
     (đã ứng với branch test-3-final)
+
+
+===== Chapter 13: Modules Subscribers ====
+Bài tập CRUD subscribers, đồng thời tìm hiểu cách gửi email với Nest.js sử dụng “template xây dựng sẵn”, kết hợp với “cron jobs” để gửi email tự động.
+
+## 1- Model Subscribers ##
+
+//Subscriber.java
+id: long
+name: String
+email: String
+
+@ManyToMany(fetch = FetchType.LAZY)
+@JsonIgnoreProperties(value = { "subscribers" })
+@JoinTable(name = "subscriber_skill", joinColumns = @JoinColumn(name = "subscriber_id"), inverseJoinColumns = @JoinColumn(name = "skill_id"))
+private List<Skill> skills;
+
+
+//Skill.java
+@ManyToMany(fetch = FetchType.LAZY, mappedBy = "skills")
+@JsonIgnore
+private List<Subscriber> subscribers;
+
+## II - Bài tập CRUD Subscribers ##
+
+Lưu ý: truyền token ứng với tài khoản admin@gmail.com (full quyền, và đã gán quyền crud với subscribers)
+
+Viết 3 API (in đậm bên dưới):
+
+CRUD Subscribers (làm tương tự như CRUD jobs, cần check các điều kiện cần thiết)
+
+Create a subscriber
+POST http://localhost:8080/api/v1/subscribers
+
+Check trùng email, check skills truyền lên (tương tự như job) 
+	
+	Data mẫu:
+{
+    "email": "admin@gmail.com",
+    "name": "Eric",
+    "skills": [
+        {"id": 1 },  {"id": 2 }
+    ]
+}
+
+Update a subscriber (chỉ update skills)
+PUT http://localhost:8080/api/v1/subscribers
+
+check skills truyền lên (tương tự như job) 
+
+{
+    "id": 1,
+    "skills": [
+        {"id": 1 },  {"id": 3 }
+    ]
+}
+
+Không cần làm API fetch data và xóa, vì không làm tại admin
+
+Update API Delete a Skills => cần xóa subscriber_skill
+
+## III - Cấu hình Send Email với Spring ##
+Tham khảo:
+https://docs.spring.io/spring-framework/reference/integration/email.html
+https://www.baeldung.com/spring-email
+
+1. Cài đặt thư viện
+// https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-mail
+implementation("org.springframework.boot:spring-boot-starter-mail")
+
+Mô hình gửi mail:
+Client gửi request tới server Java Spring -> gọi server Gmail -> gửi mail tới client
+(khi gửi request tới server java spring thì ở đây nó ko tự động gửi được email vì đây là http Server không phải server gửi email như smtp
+    -> ở đây chúg ta ko viết server gửi email mà sử dụng dịch vụ phổ biến free là Gmail )
+
+2. Tạo app password với Gmail
+Ngôn ngữ sử dụng là tiếng anh
+Tài khoản Gmail cần bật xác thực 2 lớp
+https://myaccount.google.com/apppasswords
+
+3. Cấu hình tham số môi trường
+https://docs.spring.io/spring-boot/appendix/application-properties/index.html#appendix.application-properties.mail
+
+https://stackoverflow.com/questions/16594855/where-to-find-all-available-java-mail-properties
+
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.username=your-email
+spring.mail.password=your-gmail-app-password
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+-> Phần cấu hình này thì thay email + password = app password để tăng tính bảo mật và private dùng mật khẩu này để giao tiếp giữa server với server 
+
+

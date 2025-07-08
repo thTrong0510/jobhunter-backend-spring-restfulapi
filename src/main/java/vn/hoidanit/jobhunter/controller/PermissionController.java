@@ -44,7 +44,7 @@ public class PermissionController {
 
     @PutMapping("/permissions")
     @ApiMessage("update a permission")
-    public ResponseEntity<Permission> updatePermission(@Valid @RequestBody Permission permission)
+    public ResponseEntity<Permission> updatePermission(@RequestBody Permission permission)
             throws IdInvalidException {
         if (this.permissionService.fetchPermissionById(permission.getId()).isEmpty()) {
             throw new IdInvalidException("Permission id: " + permission.getId() + " is not exist");

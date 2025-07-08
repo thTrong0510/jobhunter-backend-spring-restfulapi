@@ -3,37 +3,54 @@ package vn.hoidanit.jobhunter.domain;
 import java.time.Instant;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import vn.hoidanit.jobhunter.util.SecurityUtil;
 
 @Entity
-@Table(name = "skills")
-@Getter
+@Table(name = "subscribers")
 @Setter
-@AllArgsConstructor
+@Getter
 @NoArgsConstructor
-public class Skill {
+public class Subscriber {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
 
     @NotBlank(message = "Name can not be blank")
     private String name;
+
+    @NotBlank(message = "Email can not be blank")
+    private String email;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JsonIgnoreProperties(value = { "subscribers" })
+    @JoinTable(name = "subscriber_skill", joinColumns = @JoinColumn(name = "subscriber_id"), inverseJoinColumns = @JoinColumn(name = "skill_id"))
+    private List<Skill> skills;
+
+    public Subscriber(@NotBlank(message = "Name can not be blank") String name,
+            @NotBlank(message = "Email can not be blank") String email, List<Skill> skills) {
+        this.name = name;
+        this.email = email;
+        this.skills = skills;
+    }
+
     // @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss a", timezone = "GTM+7")
     private Instant createdAt;
 
@@ -42,14 +59,6 @@ public class Skill {
 
     private String createdBy;
     private String updatedBy;
-
-    @ManyToMany(fetch = FetchType.LAZY, mappedBy = "skills")
-    @JsonIgnore
-    private List<Job> jobs;
-
-    @ManyToMany(fetch = FetchType.LAZY, mappedBy = "skills")
-    @JsonIgnore
-    private List<Subscriber> subscribers;
 
     @PrePersist
     public void beforeSave() {
@@ -66,15 +75,4 @@ public class Skill {
                 : "";
         this.updatedAt = Instant.now();
     }
-
-    public Skill(long id, @NotBlank(message = "Name can not be blank") String name, Instant createdAt,
-            Instant updatedAt, String createdBy, String updatedBy) {
-        this.id = id;
-        this.name = name;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
-        this.createdBy = createdBy;
-        this.updatedBy = updatedBy;
-    }
-
 }

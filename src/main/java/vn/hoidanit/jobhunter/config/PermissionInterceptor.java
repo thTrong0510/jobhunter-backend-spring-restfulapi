@@ -16,7 +16,6 @@ import vn.hoidanit.jobhunter.domain.Role;
 import vn.hoidanit.jobhunter.domain.User;
 import vn.hoidanit.jobhunter.service.UserService;
 import vn.hoidanit.jobhunter.util.SecurityUtil;
-import vn.hoidanit.jobhunter.util.exception.IdInvalidException;
 import vn.hoidanit.jobhunter.util.exception.PermissionException;
 
 public class PermissionInterceptor implements HandlerInterceptor {
