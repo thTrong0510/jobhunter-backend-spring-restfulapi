@@ -5,6 +5,8 @@ Cần làm check lại:
     - việc gọi nhiều lần 1 api như getAccount để lấy thông tin và quyền được lặp lại khá nhiều lần 
     -> có thể viết thêm API ở backend để lưu thông tin vào localStorage Để hạn chế lần gọi API
 
+    - tìm hiểu sử dụng log thay cho System.out.println 
+
 ===== Chapter 3: Hello World với Spring REST ====
 
 ##1 - Hello World##
@@ -3440,4 +3442,541 @@ spring.mail.properties.mail.smtp.auth=true
 spring.mail.properties.mail.smtp.starttls.enable=true
 -> Phần cấu hình này thì thay email + password = app password để tăng tính bảo mật và private dùng mật khẩu này để giao tiếp giữa server với server 
 
+## IV - Send Email với Template (Part 1)##
 
+Tham khảo https://drive.google.com/file/d/1b23urbqqJUmUhH28ENbIMu57-b8lmrk3/view
+
+Lưu ý với hàm gửi email. Viết try/catch để bắt exception
+
+Mục tiêu:
+Cấu hình template engine
+Gửi email với template ở trên
+
+1.Vấn đề đặt ra
+Gửi email với text đơn thuần thường có giao diện “khá xấu”. Chúng ta muốn có màu sắc, và với giao diện web (giao diện đọc email), chúng ta sẽ cần CSS
+
+Chúng ta muốn tái sử dụng “format gửi email” để gửi cùng lúc cho nhiều khách hàng khác nhau.
+
+=> template engine ra đời
+
+2.  Sử dụng Thymeleaf template
+
+Bước 1: Cài đặt thư viện
+Khi generate project, mình đã tích hợp sẵn thymeleaf cho spring
+
+implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
+implementation("org.thymeleaf.extras:thymeleaf-extras-springsecurity6")
+
+//todo: minh họa cách làm với https://start.spring.io/
+
+
+
+
+Bước 2: Cấu hình template
+
+//Gửi email với JavaMailSender
+//gửi email với html
+Tham khảo https://drive.google.com/file/d/1b23urbqqJUmUhH28ENbIMu57-b8lmrk3/view
+
+
+
+public void sendEmailSync(String to, String subject, String content, boolean isMultipart, boolean isHtml) {
+        // Prepare message using a Spring helper
+        MimeMessage mimeMessage = this.javaMailSender.createMimeMessage();
+        try {
+            MimeMessageHelper message = new MimeMessageHelper(mimeMessage, isMultipart, StandardCharsets.UTF_8.name());
+            message.setTo(to);
+            message.setSubject(subject);
+            message.setText(content, isHtml);
+            this.javaMailSender.send(mimeMessage);
+        } catch (MailException | MessagingException e) {
+            System.out.println("ERROR SEND EMAIL: " + e);
+        }
+}
+
+Giải thích: 
+MimeMessage mimeMessage = this.javaMailSender.createMimeMessage(); tạo đối tượng này để gửi mail với text phức tạp hơn sử dụng JavaMailSender thay vì MailSender như cũ
+    mimeMessage: đối tượng đầu vào 
+    isMultipart: cho phép gửi email kèm theo hình ảnh hay tệp đính kèm 
+    StandardCharsets.UTF_8.name() chuẩn kí tự gửi mail 
+
+    to: người nhận
+    subject: tiêu đề
+    isHtml: có phải file html không
+
+ví dụ:  this.emailService.sendEmailSync("2251052129trong@ou.edu.vn", "Test send mail", "<h1><b>Hello<B/></h1>", false, true);
+nhưng nếu code trực tiếp html vào thì khó maintain -> khái niệm template engine ra đời
+
+-> gửi mail với template 
+
+//Gửi email với template
+Tham khảo https://drive.google.com/file/d/1b23urbqqJUmUhH28ENbIMu57-b8lmrk3/view
+
+public void sendEmailFromTemplateSync(String to, String subject, String templateName) {
+        Context context = new Context();
+        String content = this.templateEngine.process(templateName, context);
+        this.sendEmailSync(to, subject, content, false, true);
+}
+với Context và SpringTemplateEngine được import từ thymeleaf
+mục đích của việc dùng SpringTemplateEngine là để dịch file html -> text 
+-> chúng ta chỉ cần định nghĩa các template html trong thư mục /resources/templates đây là cấu hình mặc định của thymeleaf -> dùng để gửi mail
+    -> nếu để những file html ở nơi khác -> Spring sẽ ko hiểu 
+
+
+//download file Template sử dụng trong video:
+https://drive.google.com/drive/folders/1RmO4JdjpUPyCAO1HWQEANe486ExHh5Wg?usp=drive_link
+
+
+
+Cách tạo ra template theo ý muốn:
+- Code HTML và style CSS trong cùng 1 file (không code riêng lẻ HTML và css) => sử dụng css với tag <style> </style>
+- Convert HTML/CSS => inline CSS
+- Mặc định Gmail sẽ bỏ qua CSS ở phần header => để đảm bảo an toàn hơn cho người dùng (tránh nhúng link javascript ở header)
+- Nên sử dụng layout table (không dùng css flex)
+
+## V - Send Email với Template (Part 2) ##
+
+1.Truyền data động cho template
+https://www.thymeleaf.org/doc/articles/springmail.html
+
+Tham khảo https://drive.google.com/file/d/1b23urbqqJUmUhH28ENbIMu57-b8lmrk3/view
+
+Truyền data từ controller qua template: khi truyền dùng thymeleaf được gọi bên trong attribute của thẻ và ghi đè nội dung của thẻ
+
+//todo: hardcode data, sử dụng vòng lặp để render data
+Tạo full template (đang hardcode data)
+
+Sử dụng vòng lặp với thymeleaf: https://stackoverflow.com/a/36745375
+
+
+Format currency: https://stackoverflow.com/a/14165869
+
+<span th:text="${#numbers.formatDecimal(job.salary, 0, 'COMMA', 0, 'POINT')}">
+</span>
+
+## VI - Send Email với Template (Part 3). ##
+
+1.Lấy động data để send email
+
+ public void sendSubscribersEmailJobs() {
+        List<Subscriber> listSubs = this.subscriberRepository.findAll();
+        if (listSubs != null && listSubs.size() > 0) {
+            for (Subscriber sub : listSubs) {
+                List<Skill> listSkills = sub.getSkills();
+                if (listSkills != null && listSkills.size() > 0) {
+                    List<Job> listJobs = this.jobRepository.findBySkillsIn(listSkills);
+                    if (listJobs != null && listJobs.size() > 0) {
+
+                        // List<ResEmailJob> arr = listJobs.stream().map(
+                        // job -> this.convertJobToSendEmail(job)).collect(Collectors.toList());
+
+                        this.emailService.sendEmailFromTemplateSync(
+                                sub.getEmail(),
+                                "Cơ hội việc làm hot đang chờ đón bạn, khám phá ngay",
+                                "job",
+                                sub.getName(),
+                                listJobs);
+                    }
+                }
+            }
+        }
+    }
+
+
+Lưu ý: cần update thêm cho constructors như bên dưới ae nhé
+
+    private final SubscriberRepository subscriberRepository;
+    private final SkillRepository skillRepository;
+    private final JobRepository jobRepository;
+    private final EmailService emailService;
+
+    public SubscriberService(
+            SubscriberRepository subscriberRepository,
+            SkillRepository skillRepository,
+            JobRepository jobRepository,
+            EmailService emailService) {
+        this.subscriberRepository = subscriberRepository;
+        this.skillRepository = skillRepository;
+        this.jobRepository = jobRepository;
+        this.emailService = emailService;
+    }
+
+2. Sử dụng async để gửi email
+tức là mình tăng tính trải nghiệm người dùng thực hiện đa luồng xử lý nếu gửi mail đó không ảnh hưởng đến logic của chương trình -> tách ra 2 luồng
+    + luồng xử lý logic 
+    + gửi mail
+    chứ nếu phải đợi gửi mail xong thì mới xử lý logic phía sau rồi mới trả lại pản hồi cho người dùng thì không tối ưu
+    -> nếu đã xử lý xong -> response gửi mail mình sẽ cho nó chạy luồng khác
+
+Cần cấu hình: 
+    @EnableAysync ở JobhunterApplication (class đầu tiên chạy vào)
+    -> nếu function nào dùng bất đồng bộ thì trang trí nó = @Async ở đây chính là hàm sendEmailFromTemplateSync
+
+Nếu chỉ cấu hình như vậy khi chạy API nó sẽ trả ra phản hồi ngay lập tức nhưng việc gửi mail sẽ bị fail (tức là không nhận được mail)
+Giải thích cơ bản thì chương trình chạy nó sẽ chạy trên main thread thì chạy bất đồng bộ nó sẽ chạy 1 thread phụ khác nhưng luồng này mặc định không dùng được dữ liệu của main thread -> lỗi (dữ liệu cụ thể ở đây chính là dữ liệu query xuống database)
+-> lỗi khi convert từ html trong templates sang văn bản. Lỗi này tương tự lúc dùng intercaptor và lúc đó sử dụng transactional để fix nhưng ở đây thì cụ thể ko biết transactional có fix được case này không
+-> cần xử lý việc truyền dữ liệu giữa main thread và các thread phụ 
+
+cơ bạn đối với SpringTemplateEngine (templateEngine) thì mình chỉ nên đưa dữ liệu cho nó (DTO: jobName, companyName, ...) chứ không nên để truy vấn như job.company.name ...khi dùng chấm như thế là đang gọi data của đối tượng (nhưng ở đây đang dùng lazy loading khi nào gọi tới nó mới query lại trên cái session khi lúc đầu)
+ví dụ ở main thread khi lấy 1 job lên từ database (lưu session) thì nếu muốn lấy job.company -> ở main thread thì nó vẫn có session này -> nó vẫn lấy được data nhưng ở thread phụ không biết thread này -> lỗi 
+https://www.danvega.dev/blog/sending-async-emails-in-spring
+
+    public ResEmailJob convertJobToSendEmail(Job job) {
+        ResEmailJob res = new ResEmailJob();
+        res.setName(job.getName());
+        res.setSalary(job.getSalary());
+        res.setCompany(new ResEmailJob.CompanyEmail(job.getCompany().getName()));
+        List<Skill> skills = job.getSkills();
+        List<ResEmailJob.SkillEmail> s = skills.stream().map(skill -> new ResEmailJob.SkillEmail(skill.getName()))
+                .collect(Collectors.toList());
+        res.setSkills(s);
+        return res;
+    }
+
+
+## VII -  Cron Job ##
+Là một khái niệm trong hệ điều hành Linux 
+đối với Spring có 1 topic được gọi là Task execution and scheduling phần mình áp dụng sẽ là Scheduling 
+
+còn thuật ngữ Cron Job nó không phải xuất phát từ Java Spring mà từ hdh linux việc viết cron job có thể viết ở backend hoặc ngay trong database 
+-> đơn giản ý tưởng là nó vẫn là 1 đoạn code nhưng được cấu hình để chạy tự động vào 1 khoản thời gian nào đó
+
+Bất cứ nơi nào trong các component đều sử dụng được cron
+
+(Part 1)
+
+Tham khảo:
+https://spring.io/blog/2020/11/10/new-in-spring-5-3-improved-cron-expressions
+
+https://docs.spring.io/spring-framework/reference/integration/scheduling.html
+
+1. Khái niệm cron job
+https://en.wikipedia.org/wiki/Cron
+
+Cron là cách chúng ta đặt lịch (schedule) để tự động làm một công việc gì đấy (job)
+
+
+
+2. Cách viết cron job
+https://docs.spring.io/spring-framework/reference/integration/scheduling.html#scheduling-cron-expression
+
+https://spring.io/guides/gs/scheduling-tasks
+
+
+Bước 1: enabled
+
+@EnableScheduling
+
+
+Bước 2: sử dụng schedule với cron
+https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/scheduling/annotation/Scheduled.html#cron()
+
+@Scheduled(fixedRate = 5000) // truyền vào đây 1 expression hoặc 1 cron()
+Annotation trang trí cho 1 function -> giúp nó chạy khi thỏa 1 điều kiện
+
+(Part 2)
+
+Cách viết cron job:
+nếu cơ bản mình viết cron gửi mail tự động cứ 60s 1 lần @Scheduled(cron = "*/60 * * * * *") cho sendSimpleEmail của EmailController thì nó sẽ bị lỗi vì không có session khi truy vấn xuống database -> cần trang trí thêm @Transactional
+
+https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/scheduling/annotation/Scheduled.html#cron()
+
+https://docs.spring.io/spring-framework/reference/integration/scheduling.html#scheduling-cron-expression
+
+Tham khảo: https://stackoverflow.com/questions/45124756/spring-scheduling-cron-expression-for-everyday-at-midnight-not-working
+
+## VIII - Nhận xét về dự án Frontend ##
+
+1.Fix bug
+Nên tách riêng API dành cho Client và API dành cho Admin => dễ phân quyền khi public API
+Nên tách thành các API khác nhau endpoint và controller khác nhau như vậy việc phân quyền sẽ dễ hơn chỉ có những endpoint nào cho admin hoặc cho HR thì mới thêm check role và permission
+
+//Code thêm tính năng download và giao diện subscribers
+Bổ sung api:
+POST /api/v1/subscribers/skills
+=> lấy skill của user đã đăng ký
+
+
+Test dự án frontend:
+
+Version node.js mình sử dụng là 16.20.0:
+https://nodejs.org/download/release/v16.20.0/
+
+Cài chính xác version để hạn chế tối đa lỗi có thể xảy ra. (nvm)
+
+Kiểm tra đã cài đặt thành công với câu lệnh: node -v
+
+Download dự án https://drive.google.com/file/d/1-rEcbHZ2B5Xn3-fzRvEnSwzxKL10xkLx/view
+(đã ứng với branch master)
+2.Tổng kết ứng dụng:
+
+Người dùng chưa đăng nhập:
+Chức năng đăng ký/đăng nhập
+Xem được danh sách công ty (company)
+Xem được danh sách công việc (job)
+Tìm kiếm job theo các tiêu chí (skill/location)
+
+Người dùng đã đăng nhập:
+Người dùng được tạo = /register (normal user, không được phân role):
+Chức năng rải cv
+Chức năng xem lịch sử rải cv
+Chức năng đăng ký nhận email theo skill (subscribers)
+
+Người dùng được phân quyền (theo permission và role):
+Bản chất của 1 permission (quyền hạn), là 1 API khai báo tại backend
+Người dùng admin (full quyền) được tạo = code
+Cần kết hợp giữa frontend/backend để thực hiện việc phân quyền (mặc định chặn phân quyền tại backend theo Interceptor)
+#117. Cách xử lý phân quyền tại Frontend (Bonus)
+và #118. Interceptor
+
+
+===== Tổng Kết =====
+Tổng kết các kiến thức đã học và hướng dẫn tối ưu hóa dự án backend Java Spring
+
+## I - Xử lý Global Exception ##
+
+Lỗi đang default nhảy vào Custom Auth
+ví dụ trường hợp gửi mail khi (không dùng bất đồng bộ) và lỗi code thymeleaf ở trong file html như cách gọi sai blabla ... nhưng nó vẫn hiển thị lỗi Forrbiden hoặc lỗi trong Interceptor
+bơi vì thực tế trong SecurityConfiguration all lỗi liên quan đến quá trình sử dụng JWT nó sẽ nhảy vào customAuthenticationEntryPoint + trong case chúng ta không khai báo lỗi đó trong Global Exception thì customAuthenticationEntryPoint nó sẽ xử lý các lỗi đó
+
+-> viết ngoại lệ cho các exception chưa được định nghĩa
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<RestResponse<Object>> handleAllException(Exception ex) {
+        RestResponse<Object> res = new RestResponse<Object>();
+        res.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
+        res.setMessage(ex.getMessage());
+        res.setError("Internal Server Error");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(res);
+    }
+
+## II - Swagger ##
+
+1.Swagger là gì ?
+https://swagger.io/docs/specification/about/
+
+Mục đích chúng ta sử dụng Swagger, là tìm cách viết document (tài liệu) cho REST APIs.
+Đi làm, có rất nhiều cách để viết “document”, và swagger là 1 trong số đó (và nên biết khi sử dụng với Java)
+
+Link truy cập swagger: http://server:port/context-path/swagger-ui.html
+context-path ở dự án này là '' rỗng ví dụ: http://localhost:8080/laptopshop -> chạy server laptopshop
+                                           http://localhost:8080/jobhunter -> chạy server jobhunter
+                                           thì đó chính là ứng dụng của context-path
+
+2.Cài đặt
+https://springdoc.org/#getting-started
+
+implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0")
+
+Cấu hình Security: (allow access)
+ "/v3/api-docs/**", chứa tất cả đường link API của server -> dạng json có thể convert vào postman nó sẽ tự động tạo nhưng API đó 
+ "/swagger-ui/**",
+ "/swagger-ui.html"
+
+ khi chỉ mới cấu hình nhưng link này để nó không cần xác thực thì khi truy cập nó sẽ hiển thị các API mẫu mặc định đối của swagger
+
+ khi truy cập vào các link này có thể bị lỗi RestResponse can not be cast to class do mình cấu hình trong formatResresponse nên nó bị lỗi tương tự như can not be cast to String 
+ -> cấu hình thêm nếu truy cập vào những link swagger thì không làm gì cả
+
+//FormatRestResponse.java
+String path = request.getURI().getPath();
+if (path.startsWith("/v3/api-docs") || path.startsWith("/swagger-ui")) {
+      return body;
+}
+
+Truy cập swagger-ui tại: http://localhost:8080/swagger-ui/index.html
+(với service = /v3/api-docs)
+
+
+3.Cấu hình Swagger
+
+- Thêm Bearer Token
+- Hướng dẫn test api
+
+
+Tham khảo: 
+https://springdoc.org/#springdoc-openapi-core-properties
+
+https://www.bezkoder.com/spring-boot-swagger-3/
+
+https://www.baeldung.com/spring-boot-swagger-jwt
+
+File cấu hình swagger trong video, tham khảo https://drive.google.com/file/d/1HsNJq5M13beJfGq9gqIbC34enKMZt8AL/view
+
+## III -  Logging ##
+quan trọng khi chạy ứng dụng thực tế (hỗ trợ cung cấp thông tin chạy thức tế của ứng dụng)
+
+thực tế thì khi cài đặt Spring starter nó đã kèm theo loggin cơ bản rồi những thông tin chạy chương trình ở terminal chính là log để xem quá trình cũng như thông tin khi ứng dụng thực hiện hành động gì đó 
+
+Tài liệu: https://docs.spring.io/spring-boot/how-to/logging.html
+
+https://www.baeldung.com/spring-boot-logging
+
+## IV - Build Dự Án với Docker ##
+Yêu cầu để thực hiện video này: bạn cần có kiến thức cơ bản về docker
+Nếu chưa biết gì, tham khảo:
+https://www.youtube.com/playlist?list=PLncHg6Kn2JT4kLKJ_7uy0x4AdNrCHbe0n
+
+
+Tại sao không deploy local ?
+
+Tư duy khi viết dockerfile cho dự án:
+
+Bước 1: sử dụng gradle để build dự án (mặc định thành file .jar)
+
+Do chúng ta không sử dụng view (như khóa mvc), nên không cần build file .war
+
+Bước 2: định nghĩa docker compose file
+
+Ghi đè các tham số môi trường, như:
+Thông tin kết nối tới database
+Thông tin nơi lưu file upload
+
+Tạo volume để backup database, và file upload
+
+Bước 3: chạy dự án với docker compose
+
+Do đã có file .jar (bước 1) => để chạy dự án, chỉ cần chuẩn bị môi trường java là chạy được
+
+Link file docker mình sử dụng trong video, download https://drive.google.com/file/d/1ZQQJKjJbg24SOhew3Ckd7oCgReQ11hAo/view
+
+## V - Nhận xét về cách code dự án Spring ##
+
+Không có khái niệm, đâu là cách tốt ưu nhất để code dự án với Spring.
+
+Điều quan trọng, là cách bạn code, cách bạn tổ chức code, phục vụ và giải quyết tốt cho bài toán bạn đang gặp phải.
+
+Tuy nhiên, khi code, cần chú ý tới 3 yếu tố chính:
+
+Code phải có khả năng mở rộng (phát triển cho tương lai, ví dụ thêm feature mới)
+Code phải bảo trì được (maintain)
+Code phải có khả năng test (viết testcase)
+
+//Giải thích cách code với implement:
+Cách code spring với implement
+
+## VI - Cách tự tạo dự án  Spring Restful của bạn ##
+
+1. Các lưu ý
+Không nên chọn version Java mới nhất, vì có thể, thư viện (community) chưa kịp thời hỗ trợ => nên chọn 1 version “gần mới nhất” để đảm bảo tính ổn định.
+
+Hãy chọn version java có từ LST (long term support)
+https://www.oracle.com/java/technologies/java-se-support-roadmap.html
+
+Nên chọn các version mới của Spring để nhận những update mới nhất (xịn nhất)
+https://github.com/spring-projects/spring-framework/releases
+https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-Versions
+
+Nếu bắt đầu dự án mới, bạn nên sử dụng Spring Framework từ version 6.x
+(ứng với Spring Security 6.x và Spring Boot 3.x)
+
+2.Cách tự tạo dự án của riêng bạn
+Bạn có thể lấy lại dự án của mình (sử dụng trong khóa học) để code mở rộng thêm
+Ưu điểm: bạn không cần phải “cấu hình”, ví dụ như Spring Security
+Nhược điểm: bạn cần xóa code đi, để phục vụ dự án của bạn
+
+Hoặc, tạo dự án từ đầu:
+https://start.spring.io/
+
+Lưu ý, cấu hình của trang : https://start.spring.io/ sẽ thay đổi theo thời gian (đây là lý do tại sao trong khóa học, mình yêu cầu kéo dự án từ github)
+
+3.Cách bạn tự code dự án Spring từ đầu
+Truy cập: https://start.spring.io/
+
+Bước 1: Bạn chọn version Spring boot, chọn build tool, language và dependency
+
+Dependency hay dùng như: jpa, chọn loại database, security
+
+Bước 2: Nếu bạn chọn database, cần cấu hình thông tin đăng nhập vào database
+Mình đã làm bước này trong khóa học, tại video #16
+
+Bước 3: Tạo model cho dự án
+Tạo base các model cho dự án và ràng buộc mối quan hệ (nếu có)
+
+Đây chính là bước bạn cần phân tích database cho dự án của bạn, có thể chưa hoàn hảo, tuy nhiên cần code base các Model chính
+
+Bước 4: Cấu hình Request/Response (nếu có)
+
+Tại bước này, bạn nên off Security (disabled Spring Security)
+//disable security
+@SpringBootApplication(exclude = {
+	org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class,
+	org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration.class
+})
+
+
+Cấu hình Security với Password Encoder (video #48)
+Sau đấy, tạo base CRUD User
+
+Bước 5: Cấu hình Spring Security
+Bao gồm viết file config cho Security và logic đăng nhập, cùng với JWT
+
+Bạn không cần nhớ code, có thể tham khảo cách mình làm trong khóa học, điều quan trọng, là bạn hiểu bạn đang làm gì. Có thể debug để xem luồng code chạy
+
+Bước 6: CRUD các tính năng cho dự án của bạn
+
+
+## VII -  Nhận xét về dự án thực hành##
+
+1.Nhận xét về dự án thực hành
+Ưu điểm:
+Thực hành sử dụng Spring như là backend Restful API với JWT (json web token)
+Phân quyền dự án ở mức độ basic (với role và permissions)
+
+Nhược điểm:
+Nên tách riêng api dành cho client, dành cho admin
+Không nên format response (để cho frontend tự format)
+
+2. Các kiến thức chưa đề cập
+- rate limit (throttle)
+- actuator (loging, tracing...)
+- Soft-delete: không nên xóa data
+
+## VIII -  Giải Thích Về Lỗi RestResponse cannot be cast to class String
+
+Tài liệu:
+https://docs.spring.io/spring-framework/reference/6.2-SNAPSHOT/web/webmvc/message-converters.html
+
+https://stackoverflow.com/questions/44121648/controlleradvice-responsebodyadvice-failed-to-enclose-a-string-response
+
+1.Giải thích về cơ chế Message Converter của Spring
+//debug
+   if (!MediaType.APPLICATION_JSON.equals(selectedContentType)) {
+            return body;
+        }
+
+        String path = request.getURI().getPath();
+        if (path.startsWith("/v3/api-docs") || path.startsWith("/swagger-ui")) {
+            return body;
+        }
+
+2. Cách debug để xem lỗi
+AbstractHttpMessageConverter
+Write -> addDefaultHeaders
+
+StringHttpMessageConverter
+protected void addDefaultHeaders(HttpHeaders headers, String s, @Nullable MediaType type) 
+
+3. Cách khắc phục
+Không nên can thiệp vào quá trình “mặc định” sử dụng MessageConverter của Spring, vì không rõ yêu cầu sẽ thay đổi như thế nào trong tương lai, và có thể ảnh hưởng tới các thư viện (third party), ví dụ trong khóa học là swagger.
+
+## IX - Cấu Hình Lombok cho STS (Nếu Gặp Lỗi)
+
+Mục tiêu của video: hướng dẫn cách fix dự án Spring sử dụng thư viện lombok, tuy nhiên không chạy được với Spring Tool Suite
+
+Ví dụ: https://www.reddit.com/r/SpringBoot/comments/12im5y6/lombok_not_working_with_sts/
+
+Bước 1: download lombok
+https://projectlombok.org/download
+
+Cần có file .jar của thư viện để thực thi bước 2
+
+Bước 2: thực thi lombok
+
+Sử dụng câu lệnh: java -jar lombok.jar
+
+Chọn instance của Spring Tool Suite
+
+Bước 3: Restart Spring Tool Suite
+Clear cache
+Build lại dự án

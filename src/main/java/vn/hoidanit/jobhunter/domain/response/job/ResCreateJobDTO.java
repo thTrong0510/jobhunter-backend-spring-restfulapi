@@ -20,7 +20,7 @@ public class ResCreateJobDTO {
 
     private String name;
     private String location;
-    private String salary;
+    private double salary;
     private String quantity;
     private LevelEnum level;
 

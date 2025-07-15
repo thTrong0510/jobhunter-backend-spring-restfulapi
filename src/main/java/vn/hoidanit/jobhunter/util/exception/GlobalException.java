@@ -19,6 +19,16 @@ import vn.hoidanit.jobhunter.domain.response.RestResponse;
 @RestControllerAdvice
 public class GlobalException {
 
+    // hanle all exception
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<RestResponse<Object>> handleAllException(Exception ex) {
+        RestResponse<Object> res = new RestResponse<Object>();
+        res.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
+        res.setMessage(ex.getMessage());
+        res.setError("Internal Server Error");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(res);
+    }
+
     @ExceptionHandler(value = {
             UsernameNotFoundException.class,
             BadCredentialsException.class,
@@ -27,8 +37,8 @@ public class GlobalException {
     public ResponseEntity<RestResponse<Object>> handleIdException(Exception ex) {
         RestResponse<Object> restResponse = new RestResponse<Object>();
         restResponse.setStatusCode(HttpStatus.BAD_REQUEST.value());
-        restResponse.setError(ex.getMessage());
-        restResponse.setMessage("Exception Occurs ...");
+        restResponse.setError("Exception Occurs ...");
+        restResponse.setMessage(ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(restResponse);
     }
 
@@ -53,8 +63,8 @@ public class GlobalException {
     public ResponseEntity<RestResponse<Object>> notFoundException(Exception ex) {
         RestResponse<Object> response = new RestResponse<>();
         response.setStatusCode(HttpStatus.NOT_FOUND.value());
-        response.setError(ex.getMessage());
-        response.setMessage("404 not found. Url may not exist");
+        response.setError("404 not found. Url may not exist");
+        response.setMessage(ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
@@ -64,8 +74,8 @@ public class GlobalException {
     public ResponseEntity<RestResponse<Object>> handleFileUploadException(Exception ex) {
         RestResponse<Object> restResponse = new RestResponse<Object>();
         restResponse.setStatusCode(HttpStatus.BAD_REQUEST.value());
-        restResponse.setError(ex.getMessage());
-        restResponse.setMessage("Exception Upload File ...");
+        restResponse.setError("Exception Upload File ...");
+        restResponse.setMessage(ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(restResponse);
     }
 
@@ -75,8 +85,8 @@ public class GlobalException {
     public ResponseEntity<RestResponse<Object>> handlePermissionException(Exception ex) {
         RestResponse<Object> restResponse = new RestResponse<Object>();
         restResponse.setStatusCode(HttpStatus.FORBIDDEN.value());
-        restResponse.setError(ex.getMessage());
-        restResponse.setMessage("Forbidden");
+        restResponse.setError("Forbidden");
+        restResponse.setMessage(ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(restResponse);
     }
 

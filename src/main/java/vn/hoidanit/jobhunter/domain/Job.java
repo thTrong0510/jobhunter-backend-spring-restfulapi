@@ -40,7 +40,7 @@ public class Job {
 
     private String name;
     private String location;
-    private String salary;
+    private double salary;
     private String quantity;
 
     @Enumerated(EnumType.STRING)

@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import vn.hoidanit.jobhunter.domain.Job;
+import vn.hoidanit.jobhunter.domain.Skill;
 
 @Repository
 public interface JobRepository extends JpaRepository<Job, Long>, JpaSpecificationExecutor<Job> {
@@ -19,4 +20,6 @@ public interface JobRepository extends JpaRepository<Job, Long>, JpaSpecificatio
     Job save(Job job);
 
     List<Job> findAll();
+
+    List<Job> findBySkillsIn(List<Skill> skills);
 }
